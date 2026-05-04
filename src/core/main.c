@@ -33,6 +33,7 @@
 #include "sys/module_manager.h"
 #include "sys/bootfs_state.h"
 #include "input/keymap.h"
+#include "input/keyboard.h"
 
 extern void sysfs_init_subsystems(void);
 
@@ -231,6 +232,48 @@ static void fat32_mkdir_recursive(const char *path) {
     if (i > 0 && temp[i-1] != '/') {
         temp[i] = '\0';
         fat32_mkdir(temp);
+    }
+}
+
+static bool usage_policy_prompt(void) {
+    kconsole_set_active(true);
+    serial_write("BoredOS - Please read the Usage Policy provided with this software before continuing.\n");
+    serial_write("Do you agree to the terms? [y/N]\n");
+
+    while (1) {
+        if ((inb(0x64) & 1) == 0) {
+            asm volatile("pause");
+            continue;
+        }
+
+        uint8_t scancode = inb(0x60);
+        keyboard_event_t ev;
+        if (!keyboard_handle_set1_scancode(scancode, &ev)) {
+            continue;
+        }
+
+        if (!ev.pressed) {
+            continue;
+        }
+
+        if (ev.keycode == KEY_ENTER || ev.keycode == KEY_KP_ENTER) {
+            serial_write("\n");
+            return false;
+        }
+
+        if (!ev.is_text) {
+            continue;
+        }
+
+        if (ev.codepoint == 'y' || ev.codepoint == 'Y') {
+            serial_write("\n");
+            return true;
+        }
+
+        if (ev.codepoint == 'n' || ev.codepoint == 'N') {
+            serial_write("\n");
+            return false;
+        }
     }
 }
 
@@ -443,6 +486,11 @@ void kmain(void) {
     } else {
         serial_write("[INIT] No SMP response from bootloader\n");
         smp_init(NULL);
+    }
+
+    if (!usage_policy_prompt()) {
+        log_fail("Usage policy not accepted, halting");
+        hcf();
     }
 
     wm_init();
