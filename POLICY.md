@@ -1,213 +1,154 @@
-# BoredOS — Usage Policy & Disclaimer
+# BoredOS — Usage Policy & Legal Notice
 
-Version 1.0 | Last updated: May 2026
+Version 2.0 | Last updated: May 2026
 
 ---
 
-## 1. Acceptance of Terms
+## 1. Purpose of This Document
 
-**By installing, running, copying, modifying, or otherwise using BoredOS, you
-acknowledge that you have read this policy, understand it, and agree to be bound
-by its terms.**
+This document provides additional context about the intended use of BoredOS and outlines important legal and practical considerations.
 
-If you do not agree to these terms, you must not use, install, or distribute
-BoredOS. Where technically feasible (e.g. in installer or first-boot contexts),
-an explicit acknowledgment prompt will be presented. Proceeding past that prompt
-constitutes acceptance of this policy.
+**It is not a software license.**  
+BoredOS is licensed exclusively under the GNU General Public License v3.0 (GPLv3), which governs your rights to use, modify, and distribute the software.
+
+In the event of any conflict, the GPLv3 takes full precedence.
 
 ---
 
 ## 2. License
 
-BoredOS is free software released under the **GNU General Public License v3.0
-(GPLv3)**. A full copy of the license is available in the [`LICENSE`](./LICENSE)
-file in this repository.
+BoredOS is free software released under the **GNU General Public License v3.0 (GPLv3)**.
 
-The GPLv3 governs your rights to copy, modify, and redistribute BoredOS. This
-Usage Policy is a **supplementary document** and does not override or modify the
-permissions and conditions granted by the GPLv3. In the event of any conflict
-between this document and the GPLv3, the GPLv3 takes precedence with respect to
-software licensing rights.
+You are free to:
+- Use the software for any purpose
+- Study and modify the source code
+- Redistribute original or modified versions
 
-Certain restrictions in this policy (in particular, the jurisdictional
-restrictions in Section 3) are incorporated as **additional terms** under
-**GPLv3 Section 7**. Violation of those restrictions therefore constitutes a
-breach of the copyright license under which BoredOS is distributed, and
-automatically terminates your rights under the GPLv3 in accordance with
-Section 8 of that license.
+A copy of the GPLv3 is provided in the [`LICENSE`](./LICENSE) file.
 
 ---
 
-## 3. Jurisdictional Restrictions
+## 3. No Age Verification or Regulatory Features
 
-### 3.1 Age Verification Laws
+BoredOS is designed as a **local operating system** and:
 
-BoredOS **does not implement any form of age verification**, and the author has
-no plans to add such a mechanism. BoredOS is an operating system and does not
-collect user data, connect to external services, or provide online content that
-is regulated under age-gating legislation.
+- Does not implement **age verification**
+- Does not implement **age-gating**
+- Does not perform **identity checks**
+- Does not collect or process **personal data**
 
-However, certain jurisdictions have enacted laws that impose age verification or
-age-appropriate design obligations on software or digital services accessible to
-minors, including but not limited to:
-
-- **California, USA** — California Age-Appropriate Design Code Act (AB 2273)
-- **United States (federal)** — Children's Online Privacy Protection Act (COPPA),
-  as enforced by the FTC
-- **United Kingdom** — Children's Code (Age Appropriate Design Code) under the
-  UK GDPR / Data Protection Act 2018
-- **Any other jurisdiction** that enacts substantially similar legislation
-  requiring age verification, age-appropriate design assessments, or parental
-  consent mechanisms for software accessible to users under the age of 16 or 18
-
-### 3.2 Prohibited Use in Restricted Jurisdictions
-
-**If you are located in, or subject to the laws of, any jurisdiction described
-in Section 3.1, you are not permitted to use, install, execute, deploy,
-distribute, sublicense, or otherwise interact with BoredOS in any form.**
-
-"Use" for the purposes of this section means:
-
-- Installing or running BoredOS on any hardware or virtual machine
-- Distributing BoredOS or any derivative work to third parties
-- Deploying BoredOS in any environment accessible to others
-- Incorporating BoredOS or its components into any other software product
-
-By using BoredOS, you represent and warrant that the laws of your jurisdiction
-do not require the operator or distributor of this software to implement age
-verification or age-gating controls. This restriction is incorporated as an
-additional condition of the copyright license pursuant to **GPLv3 Section 7(e)**.
-Breach of this restriction terminates your rights under the GPLv3.
-
-### 3.3 Permitted Jurisdictions
-
-In jurisdictions that do not impose age verification or age-gating obligations
-on software of this nature — including, at the time of writing, the Netherlands
-and many other countries — any person of any age may use BoredOS freely, subject
-to the terms of the GPLv3 and this policy.
-
-### 3.4 No Monitoring of Compliance
-
-The author does not have the technical means or intent to enforce jurisdictional
-restrictions on a per-user basis. These restrictions are stated in good faith to
-clarify the intended scope of use and to allocate legal responsibility
-appropriately. If you are unsure whether your jurisdiction imposes such
-requirements, consult a qualified legal professional before using or distributing
-BoredOS.
+There are currently no plans to introduce such features.
 
 ---
 
-## 4. Privacy & Data Collection
+## 4. Responsibility for Legal Compliance
 
-**BoredOS collects absolutely no data.**
+Laws and regulations vary between jurisdictions and may apply differently depending on how software is used or distributed.
 
-- No telemetry
-- No analytics
-- No crash reports
-- No user accounts
-- No network communication initiated by the OS itself
-- No cookies, tracking pixels, or persistent identifiers of any kind
+**You are solely responsible for ensuring that your use, distribution, or deployment of BoredOS complies with applicable laws and regulations in your jurisdiction.**
 
-BoredOS runs entirely on your local hardware. The author has no visibility into
-who runs BoredOS, how it is used, or on what hardware it is installed.
+This includes, but is not limited to, laws relating to:
 
-The GitHub repository hosting BoredOS source code is operated by **GitHub, Inc.**,
-which may collect data in accordance with
-[GitHub's own Privacy Policy](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
-The author has no control over and is not responsible for GitHub's data practices.
+- Child safety and age-appropriate design  
+- Data protection and privacy  
+- Software distribution and platform obligations  
+
+If your use case requires features that BoredOS does not provide (such as age verification), you are responsible for implementing those features yourself or choosing alternative software.
 
 ---
 
-## 5. Disclaimer of Warranties
+## 5. No Representation of Legal Compliance
 
-BoredOS is provided **"as is"**, without warranty of any kind, express or
-implied, including but not limited to the warranties of merchantability, fitness
-for a particular purpose, and non-infringement.
+The author makes **no representation or warranty** that BoredOS complies with any specific legal or regulatory framework, including but not limited to:
 
-The author makes no representations or warranties that:
+- The California Age-Appropriate Design Code Act (AB 2273)  
+- The Children’s Online Privacy Protection Act (COPPA)  
+- The UK Age Appropriate Design Code (Children’s Code)  
+- Any similar laws in other jurisdictions  
 
-- BoredOS will operate correctly on any given hardware configuration
-- BoredOS is free of bugs, security vulnerabilities, or defects
-- BoredOS is fit for any production, safety-critical, or mission-critical use
-
-**Do not use BoredOS in any environment where failure could result in personal
-injury, data loss, financial harm, or other significant consequences.**
-
-To the extent that mandatory provisions of applicable law (including EU consumer
-protection law) imply warranties that cannot be excluded, such warranties are
-limited in duration and scope to the minimum required by law.
+BoredOS is general-purpose software and is not designed or certified for compliance with regulatory regimes.
 
 ---
 
-## 6. Limitation of Liability
+## 6. No Monitoring or Enforcement
 
-To the maximum extent permitted by the mandatory laws of your jurisdiction, the
-author of BoredOS shall not be liable for any direct, indirect, incidental,
-special, exemplary, or consequential damages (including but not limited to loss
-of data, loss of profits, hardware damage, or business interruption) arising
-out of the use or inability to use BoredOS, even if advised of the possibility
-of such damages.
+BoredOS:
 
-Nothing in this section limits liability for death or personal injury caused by
-negligence, fraud, or any other liability that cannot be excluded under
-applicable mandatory law.
+- Does not track users  
+- Does not verify location or identity  
+- Does not enforce jurisdiction-specific restrictions  
 
-The author is a private individual contributing this project freely to the
-open-source community. This project generates no revenue. Any legal claims
-should be assessed proportionally to this context.
+The author has no technical ability to monitor or control how the software is used.
 
 ---
 
-## 7. No Endorsement
+## 7. Privacy
 
-The BoredOS name and branding may not be used to endorse or promote products or
-services derived from this software without prior written permission from the
-author. This is consistent with, and does not supersede, the terms of the GPLv3.
+**BoredOS collects no data.**
 
----
+- No telemetry  
+- No analytics  
+- No crash reporting  
+- No accounts  
+- No background network communication  
 
-## 8. Governing Law & Jurisdiction
+All operation is local to the user’s device.
 
-This policy and any non-contractual obligations arising out of or in connection
-with it are governed by the laws of **the Netherlands**, without regard to its
-conflict of law provisions.
-
-Any disputes arising out of or in connection with this policy shall be subject
-to the exclusive jurisdiction of the competent courts of **Amsterdam, the
-Netherlands**, except where mandatory applicable law requires otherwise.
+The source code is hosted on GitHub, which is operated by GitHub, Inc. Their data practices are governed by their own privacy policy.
 
 ---
 
-## 9. Severability
+## 8. Disclaimer of Warranty
 
-If any provision of this policy is found by a court of competent jurisdiction to
-be invalid, unlawful, or unenforceable, that provision shall be deemed modified
-to the minimum extent necessary to make it enforceable, or severed if
-modification is not possible. The validity and enforceability of the remaining
-provisions shall not be affected.
+BoredOS is provided **"as is"**, without warranty of any kind, express or implied, including:
 
----
+- Merchantability  
+- Fitness for a particular purpose  
+- Non-infringement  
 
-## 10. Changes to This Policy
+The author does not guarantee that:
 
-This policy may be updated from time to time, for example to reflect changes in
-applicable law. Each version will carry an updated version number and date. The
-most current version will always be available in the
-[BoredOS GitHub repository](https://github.com/boreddevnl/BoredOS). Prior
-versions will be retained in the repository history.
-
-Continued use of BoredOS after a policy update constitutes acceptance of the
-updated terms. If you do not agree to an updated version, you must cease using
-BoredOS.
+- The software is free of bugs or vulnerabilities  
+- The software will work on any specific hardware  
+- The software is suitable for any particular use case  
 
 ---
 
-## 11. Contact
+## 9. Limitation of Liability
 
-This project is maintained by its author on a best-effort, voluntary basis.
-For questions about this policy, open an issue on the
-[GitHub repository](https://github.com/boreddevnl/BoredOS).
+To the maximum extent permitted by applicable law, the author shall not be liable for:
+
+- Data loss  
+- Hardware damage  
+- Loss of profits  
+- Business interruption  
+- Any indirect or consequential damages  
+
+Nothing in this section excludes liability where such exclusion is not permitted by law.
 
 ---
 
-*BoredOS Usage Policy v1.1 — May 2026*
+## 10. Trademarks and Attribution
+
+"BoredOS" and associated branding may not be used to endorse or promote derived products without prior permission.
+
+This does not limit your rights under the GPLv3, but applies to branding and representation.
+
+---
+
+## 11. Changes to This Document
+
+This document may be updated to reflect changes in legal context or project direction.
+
+The latest version will always be available in the repository.  
+Previous versions will remain accessible via version history.
+
+---
+
+## 12. Contact
+
+For questions or concerns, open an issue on the GitHub repository or contact the author via email at chris@boreddev.nl. 
+
+---
+
+*BoredOS Usage Policy v2.0 — May 2026*
