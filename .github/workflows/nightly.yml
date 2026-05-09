@@ -15,17 +15,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install cross toolchain
+        uses: risonakamo/setup-x86_64-elf-gcc@v1
+
+      - name: Install userland build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             make \
-            gcc-x86-64-linux-gnu \
-            binutils-x86-64-linux-gnu \
             nasm \
             xorriso
-          sudo ln -sf /usr/bin/x86_64-linux-gnu-gcc /usr/local/bin/x86_64-elf-gcc
-          sudo ln -sf /usr/bin/x86_64-linux-gnu-ld /usr/local/bin/x86_64-elf-ld
 
       - name: Build ISO
         run: make -j4
@@ -49,7 +48,7 @@ jobs:
           name: Nightly Build (${{ steps.metadata.outputs.short_sha }})
           body: |
             This is an automated nightly build of BoredOS, this is not a final release and may be unstable.
-            
+
             Built from commit:
             - Full hash: `${{ github.sha }}`
             - Short hash: `${{ steps.metadata.outputs.short_sha }}`
