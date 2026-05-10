@@ -25,30 +25,32 @@
 
 ## Features
 
-### System Architecture
-- **64-bit Long Mode** — fully utilizing x86_64
-- **Symmetric Multi-Processing (SMP)** — multi-core support via Limine
-- **LAPIC & IPI Scheduling** — advanced interrupt handling and inter-processor communication
-- **SMP-Safe Spinlocks** — kernel-wide sync for VFS, processes, and GUI
-- **FAT32 Filesystem** — persistent and in-memory storage
-- **lwIP Networking** — full TCP/IP stack with a basic browser
-- **Multiboot2 Compliant** — runs on real hardware and emulators
+### Kernel and Architecture
+- **Long Mode Architecture** — Native x86_64 implementation utilizing 64-bit address space and registers
+- **Symmetric Multi-Processing** — Scalable multi-core support with IPI-based scheduling and synchronization
+- **Advanced Memory Management** — Custom slab allocator with object pooling and efficient physical/virtual page mapping
+- **Hybrid VFS Layer** — Unified filesystem interface supporting FAT32, TAR, ProcFS, and SysFS
+- **Preemptive Multitasking** — Prioritized process scheduling with full context isolation
+- **Hardware Abstraction** — Comprehensive driver support for PCI, AHCI, PS/2, and ACPI
 
-### Graphical Interface
-- **BoredWM** — custom window manager with drag-and-drop
-- **Media support** — PNG, GIF, JPEG, TGA, BMP decoding
+### Graphical Desktop Environment
+- **BoredWM** — High-performance window manager featuring window stacking, focus management, and drag-and-drop interactions
+- **Typography Engine** — Integrated font manager with TrueType (TTF) support and efficient glyph caching
+- **Rich Media Subsystem** — Native hardware-independent decoding for PNG, JPEG, GIF, BMP, and TGA formats
+- **LibWidget Toolkit** — Native UI component library for rapid application development
 
-### Included Applications
-| Category | Apps |
-|----------|------|
-| Productivity | Text Editor, Calculator, Markdown Viewer, BoredWord, Browser |
-| Creativity | Paint |
-| Utilities | Terminal, Task Manager, Files, Clock, TCC, Grapher etc. |
-| Games | Minesweeper, DOOM, 2048, snake  |
+### Networking Stack
+- **TCP/IP Integration** — Full lwIP-based network stack featuring DHCP, DNS, and Berkeley-style sockets
+- **Network Services** — Integrated support for basic web browsing and real-time network telemetry
 
-</td>
-</tr>
-</table>
+### Application Ecosystem
+| Category | Applications |
+|----------|--------------|
+| Productivity | Text Editor, Markdown Viewer, BoredWord Processor, Web Browser, Calculator |
+| Development | TCC (Tiny C Compiler), Lua|
+| System | Explorer (File Manager), Task Manager, System Monitor, Graphing Utility |
+| Games | doomgeneric, Minesweeper, 2048, Snake |
+
 
 ---
 
