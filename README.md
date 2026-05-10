@@ -10,7 +10,7 @@
 
   <br />
 
-  [Docs](docs/README.md) · [Build & Run](docs/build/usage.md) · [AppDev SDK](docs/appdev/custom_apps.md) · [Support](https://buymeacoffee.com/boreddevhq)
+  [Docs](docs/README.md) · [Build & Run](docs/build/usage.md) · [AppDev SDK](docs/appdev/sdk_reference.md) · [Support](https://buymeacoffee.com/boreddevhq)
 
 </div>
 
@@ -23,7 +23,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 ### System Architecture
 - **64-bit Long Mode** — fully utilizing x86_64
