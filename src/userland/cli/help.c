@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     printf("uptime         - Print system uptime\n");
     printf("meminfo        - Print memory information\n");
     printf("hexdump <file> - Display file contents in hexadecimal.\n");
-    printf("ps [options]   - List running processes\n")
+    printf("ps [options]   - List running processes\n");
     printf("lsblk          - List block devices and partitions\n");
     printf("cowsay [msg]   - Fun cow says something\n");
     printf("beep           - Make a beep sound\n");
