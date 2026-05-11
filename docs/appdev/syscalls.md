@@ -110,8 +110,8 @@ Notes:
 | 28 | `SYSTEM_CMD_GET_SHELL_CONFIG` | Read shell config value |
 | 32 | `SYSTEM_CMD_RTC_SET` | Set RTC datetime |
 | 41 | `SYSTEM_CMD_SET_RAW_MODE` | Terminal raw-mode control |
-| 43 | `SYSTEM_CMD_YIELD` | Yield scheduler timeslice |
-| 46 | `SYSTEM_CMD_SLEEP` | Sleep current process |
+| 43 | `SYSTEM_CMD_YIELD` | Yield scheduler timeslice (Not recommended for idle loops) |
+| 46 | `SYSTEM_CMD_SLEEP` | Sleep current process (Recommended for throttling) |
 
 ### Network
 
@@ -187,7 +187,7 @@ Notes:
 ## Common Wrapper API (`src/userland/libc/syscall.h`)
 
 Typical wrappers used by apps:
-- Process/system: `sys_exit`, `sys_yield`, `sys_spawn`, `sys_exec`, `sys_waitpid`, `sys_kill_signal`
+- Process/system: `sys_exit`, `sys_yield`, `sys_system` (with `SYSTEM_CMD_SLEEP`), `sys_spawn`, `sys_exec`, `sys_waitpid`
 - Filesystem: `sys_open`, `sys_read`, `sys_write_fs`, `sys_close`, `sys_seek`, `sys_tell`, `sys_size`, `sys_list`
 - Network: `sys_network_init`, `sys_network_dhcp_acquire`, `sys_udp_send`, `sys_tcp_connect`, `sys_tcp_recv_nb`, `sys_dns_lookup`
 - TTY: `sys_tty_create`, `sys_tty_read_out`, `sys_tty_write_in`, `sys_tty_set_fg`

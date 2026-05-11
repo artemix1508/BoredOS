@@ -76,8 +76,8 @@ int main(void) {
         // Step D: Instruct the compositor to flush our drawing buffer to the physical screen
         ui_mark_dirty(wid, 0, 0, W_WIDTH, W_HEIGHT);
 
-        // 4. Yield and throttle
-        sys_yield();
+        // 4. Yield and throttle (targeting ~60 FPS)
+        sys_system(SYSTEM_CMD_SLEEP, 16, 0, 0, 0);
     }
 
     return 0;
@@ -93,4 +93,4 @@ int main(void) {
 5.  **`BOREDOS_APP_DESC` / `BOREDOS_APP_ICONS`**: Embedded into the compiled `.elf` as a BoredOS NOTE section. The Desktop and File Explorer read this to show the game's icon instead of the generic binary icon. See [`elf_metadata.md`](../elf_metadata.md) for full details.
 
 > [!WARNING]
-> Because `sys_yield()`'s pause duration depends heavily on CPU load and how many other processes are running (or QEMU emulation speed), tying physics/movement strictly to loops can make the game run faster on faster computers. Advanced developers will want to calculate delta time (time elapsed since the last frame) for smooth motion.
+> Because `sys_system(SYSTEM_CMD_SLEEP, ...)`'s pause duration depends heavily on CPU load and how many other processes are running (or QEMU emulation speed), tying physics/movement strictly to loops can make the game run faster on faster computers. Advanced developers will want to calculate delta time (time elapsed since the last frame) for smooth motion.
