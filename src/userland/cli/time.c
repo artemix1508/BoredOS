@@ -40,12 +40,12 @@ static int ends_with_elf(const char *s) {
 }
 
 static void print_usage(void) {
-    printf("Usage: ptime <command> [args...]\n");
+    printf("Usage: time <command> [args...]\n");
     printf("\n");
     printf("Examples:\n");
-    printf("  ptime ls\n");
-    printf("  ptime hexdump file.txt\n");
-    printf("  ptime /bin/hexdump.elf file.txt\n");
+    printf("  time ls\n");
+    printf("  time hexdump file.txt\n");
+    printf("  time /bin/hexdump.elf file.txt\n");
 }
 
 // Read the system uptime in milliseconds by reading /proc/uptime and parsing the first number (seconds).
