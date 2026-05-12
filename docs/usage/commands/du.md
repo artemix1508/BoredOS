@@ -21,7 +21,7 @@ By default, `du` prints human-readable sizes for each file and directory it enco
 | `-d, --max-depth=N` | Stop at depth N; show only entries at or above depth N. |
 | `-c, --total` | Print a grand total after all arguments have been processed. |
 | `-b, --bytes` | Print sizes in exact bytes instead of human-readable units. |
-| `-h, --human-readable` | Accepted for compatibility; human-readable is the default. |
+| `-H, --human-readable` | Accepted for compatibility; human-readable is the default. |
 | `--help` | Display usage information and exit. |
 
 ## Output Format

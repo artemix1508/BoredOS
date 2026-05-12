@@ -22,7 +22,7 @@ static int opt_bytes = 0;
 static uint64_t grand_total = 0;
 
 static void usage(void) {
-    printf("Usage: du [OPTIONS]... [FILE]...\n");
+    printf("Usage: du [options]..[file]\n");
     printf("Summarize disk usage of the set of FILEs, recursively for directories.\n\n");
     printf("Options:\n");
     printf("  -s, --summarize       display only a total for each argument\n");
@@ -31,7 +31,7 @@ static void usage(void) {
     printf("                        fewer levels below the command line argument\n");
     printf("  -c, --total           produce a grand total\n");
     printf("  -b, --bytes           print sizes in bytes\n");
-    printf("  -h, --human-readable  print sizes in human readable format (default)\n");
+    printf("  -H, --human-readable  print sizes in human readable format (default)\n");
     printf("      --help            display this help and exit\n");
 }
 
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
             opt_total = 1;
         } else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bytes") == 0) {
             opt_bytes = 1;
-        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--human-readable") == 0) {
+        } else if (strcmp(argv[i], "-H") == 0 || strcmp(argv[i], "--human-readable") == 0) {
             // No-op: human-readable is the default
         } else if (strcmp(argv[i], "-d") == 0) {
             if (i + 1 < argc) {
