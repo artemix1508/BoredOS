@@ -120,7 +120,7 @@ Repeat until no further updates are available.
 Install the required development tools:
 
 ```bash
-pacman -S make nasm xorriso
+pacman -S make nasm xorriso git
 ```
 
 ---
