@@ -5,6 +5,7 @@
 #include "syscall.h"
 #include "libui.h"
 #include "stdlib.h"
+#include "libwidget.h"
 
 #define COLOR_DARK_BG       0xFF121212
 #define COLOR_DARK_PANEL    0xFF1E1E1E
@@ -20,7 +21,7 @@
 #define GRAPH_POINTS 60
 
 static ui_window_t win_taskman;
-static ProcessInfo proc_list[32];
+static ProcessInfo proc_list[64];
 static int proc_count = 0;
 static int selected_proc = -1;
 
@@ -36,14 +37,49 @@ static uint64_t used_mem_system = 0;
 static char cpu_model_name[64] = "Unknown CPU";
 static int cpu_cores = 1;
 
+// libwidget integration
+static widget_context_t ctx;
+static widget_scrollbar_t proc_sb;
+static int scroll_offset = 0;
+
+static void ctx_draw_rect(void *user_data, int x, int y, int w, int h, uint32_t color) {
+    ui_draw_rect((ui_window_t)(uintptr_t)user_data, x, y, w, h, color);
+}
+
+static void ctx_draw_rounded_rect_filled(void *user_data, int x, int y, int w, int h, int r, uint32_t color) {
+    ui_draw_rounded_rect_filled((ui_window_t)(uintptr_t)user_data, x, y, w, h, r, color);
+}
+
+static void ctx_draw_string(void *user_data, int x, int y, const char *str, uint32_t color) {
+    ui_draw_string((ui_window_t)(uintptr_t)user_data, x, y, str, color);
+}
+
+static int ctx_measure_string_width(void *user_data, const char *str) {
+    (void)user_data;
+    return (int)ui_get_string_width(str);
+}
+
+static void ctx_mark_dirty(void *user_data, int x, int y, int w, int h) {
+    ui_mark_dirty((ui_window_t)(uintptr_t)user_data, x, y, w, h);
+}
+
+static void on_scroll_proc(void *user_data, int new_scroll_y) {
+    (void)user_data;
+    scroll_offset = new_scroll_y;
+}
+
 static int find_value(const char *buf, const char *key) {
     char *p = (char*)buf;
     int key_len = strlen(key);
     while (*p) {
-        if (memcmp(p, key, key_len) == 0 && p[key_len] == ':') {
-            p += key_len + 1;
-            while (*p == ' ') p++;
-            return atoi(p);
+        if (memcmp(p, key, key_len) == 0) {
+            char *tp = p + key_len;
+            while (*tp == ' ' || *tp == '\t') tp++;
+            if (*tp == ':') {
+                tp++;
+                while (*tp == ' ' || *tp == '\t') tp++;
+                return atoi(tp);
+            }
         }
         while (*p && *p != '\n') p++;
         if (*p == '\n') p++;
@@ -55,15 +91,19 @@ static void find_string(const char *buf, const char *key, char *out, int max_len
     char *p = (char*)buf;
     int key_len = strlen(key);
     while (*p) {
-        if (memcmp(p, key, key_len) == 0 && p[key_len] == ':') {
-            p += key_len + 1;
-            while (*p == ' ') p++;
-            int i = 0;
-            while (*p && *p != '\n' && i < max_len - 1) {
-                out[i++] = *p++;
+        if (memcmp(p, key, key_len) == 0) {
+            char *tp = p + key_len;
+            while (*tp == ' ' || *tp == '\t') tp++;
+            if (*tp == ':') {
+                tp++;
+                while (*tp == ' ' || *tp == '\t') tp++;
+                int i = 0;
+                while (*tp && *tp != '\n' && i < max_len - 1) {
+                    out[i++] = *tp++;
+                }
+                out[i] = 0;
+                return;
             }
-            out[i] = 0;
-            return;
         }
         while (*p && *p != '\n') p++;
         if (*p == '\n') p++;
@@ -72,8 +112,8 @@ static void find_string(const char *buf, const char *key, char *out, int max_len
 }
 
 static void update_proc_list(void) {
-    FAT32_FileInfo entries[64];
-    int count = sys_list("/proc", entries, 64);
+    FAT32_FileInfo entries[128];
+    int count = sys_list("/proc", entries, 128);
     if (count < 0) return;
 
     proc_count = 0;
@@ -105,18 +145,20 @@ static void update_proc_list(void) {
                 sys_close(fd);
                 if (bytes > 0) {
                     buf[bytes] = 0;
-                    proc_list[proc_count].pid = pid;
-                    find_string(buf, "Name", proc_list[proc_count].name, 64);
-                    proc_list[proc_count].used_memory = (size_t)find_value(buf, "Memory") * 1024;
                     uint64_t ticks = (uint64_t)find_value(buf, "Ticks");
-                    proc_list[proc_count].ticks = ticks;
+                    bool is_idle = find_value(buf, "Idle") == 1;
+                    
                     total_ticks_now += ticks;
-                    
-                    proc_list[proc_count].is_idle = find_value(buf, "Idle") == 1;
-                    
-                    if (!proc_list[proc_count].is_idle) user_ticks_now += ticks;
-                    proc_count++;
-                    if (proc_count >= 32) break;
+
+                    if (proc_count < 64 && !is_idle) {
+                        proc_list[proc_count].pid = pid;
+                        find_string(buf, "Name", proc_list[proc_count].name, 64);
+                        proc_list[proc_count].used_memory = (size_t)find_value(buf, "Memory") * 1024;
+                        proc_list[proc_count].ticks = ticks;
+                        proc_list[proc_count].is_idle = is_idle;
+                        user_ticks_now += ticks;
+                        proc_count++;
+                    }
                 }
             }
         }
@@ -268,18 +310,39 @@ static void draw_taskman(void) {
     ui_draw_string(win_taskman, 60, 125, "NAME", COLOR_DIM_TEXT);
     ui_draw_string(win_taskman, 250, 125, "MEMORY", COLOR_DIM_TEXT);
     
-    // Process Rows
-    int row = 0;
-    for (int i = 0; i < proc_count && row < MAX_VISIBLE_PROCS; i++) {
+
+    int list_x = 10;
+    int list_y = 150;
+    int list_w = 380;
+    int list_h = 480 - 150 - 80; // Leave space for kill button
+    int row_h = 26;
+
+    int content_h = proc_count * row_h;
+    widget_scrollbar_update(&proc_sb, content_h, scroll_offset);
+    
+    // Draw scrollbar if content exceeds height
+    if (content_h > list_h) {
+        proc_sb.h = list_h;
+        proc_sb.x = list_x + list_w - 12;
+        proc_sb.y = list_y;
+        widget_scrollbar_draw(&ctx, &proc_sb);
+        list_w -= 15; // Shrink list area to make room for scrollbar
+    }
+
+    // Clipping and Drawing rows
+    for (int i = 0; i < proc_count; i++) {
         if (proc_list[i].pid == 0xFFFFFFFF) continue;
         
-        int ry = 150 + row * 26;
-        uint32_t bg = (selected_proc == row) ? 0xFF334455 : COLOR_DARK_PANEL;
-        ui_draw_rounded_rect_filled(win_taskman, 10, ry, 380, 24, 4, bg);
+        int ry = list_y + (i * row_h) - scroll_offset;
+        
+        if (ry + row_h <= list_y || ry >= list_y + list_h) continue;
+
+        uint32_t bg = (selected_proc == i) ? 0xFF334455 : COLOR_DARK_PANEL;
+        ui_draw_rounded_rect_filled(win_taskman, list_x, ry, list_w, row_h - 2, 4, bg);
         
         char pid_str[16];
         itoa(proc_list[i].pid, pid_str);
-        ui_draw_string(win_taskman, 20, ry + 6, pid_str, COLOR_DARK_TEXT);
+        ui_draw_string(win_taskman, list_x + 10, ry + 6, pid_str, COLOR_DARK_TEXT);
         
         char name_disp[28];
         if (strlen(proc_list[i].name) > 22) {
@@ -288,13 +351,11 @@ static void draw_taskman(void) {
         } else {
             strcpy(name_disp, proc_list[i].name);
         }
-        ui_draw_string(win_taskman, 65, ry + 6, name_disp, COLOR_DARK_TEXT);
+        ui_draw_string(win_taskman, list_x + 55, ry + 6, name_disp, COLOR_DARK_TEXT);
         
         char m_str[32];
         format_mem_smart(proc_list[i].used_memory, m_str);
-        ui_draw_string(win_taskman, 255, ry + 6, m_str, COLOR_DARK_TEXT);
-        
-        row++;
+        ui_draw_string(win_taskman, list_x + 245, ry + 6, m_str, COLOR_DARK_TEXT);
     }
     
     // Kill button (Positioned relative to window height)
@@ -329,6 +390,18 @@ static void draw_taskman(void) {
 int main(void) {
     win_taskman = ui_window_create("Task Manager", 100, 100, 400, 480);
     
+    // Initialize libwidget context
+    ctx.user_data = (void*)(uintptr_t)win_taskman;
+    ctx.draw_rect = ctx_draw_rect;
+    ctx.draw_rounded_rect_filled = ctx_draw_rounded_rect_filled;
+    ctx.draw_string = ctx_draw_string;
+    ctx.measure_string_width = ctx_measure_string_width;
+    ctx.mark_dirty = ctx_mark_dirty;
+    ctx.use_light_theme = false;
+
+    widget_scrollbar_init(&proc_sb, 388, 150, 12, 250);
+    proc_sb.on_scroll = on_scroll_proc;
+
     int fd_c = sys_open("/proc/cpuinfo", "r");
     if (fd_c >= 0) {
         char buf[1024];
@@ -336,8 +409,8 @@ int main(void) {
         sys_close(fd_c);
         if (bytes > 0) {
             buf[bytes] = 0;
-            find_string(buf, "Processor", cpu_model_name, 64);
-            int cores = find_value(buf, "Cores");
+            find_string(buf, "model name", cpu_model_name, 64);
+            int cores = find_value(buf, "cpu cores");
             if (cores > 0) cpu_cores = cores;
         }
     }
@@ -346,60 +419,76 @@ int main(void) {
     
     gui_event_t ev;
     
+    uint64_t last_update = 30; // Force update on start
     while (1) {
+        bool needs_redraw = false;
         // Drain events
         while (ui_get_event(win_taskman, &ev)) {
             if (ev.type == GUI_EVENT_CLOSE) {
                 sys_exit(0);
-            } else if (ev.type == GUI_EVENT_CLICK) {
+            } else if (ev.type == GUI_EVENT_CLICK || ev.type == GUI_EVENT_MOUSE_DOWN) {
                 int mx = ev.arg1;
                 int my = ev.arg2;
-                
-                if (mx >= 10 && mx < 390 && my >= 150 && my < 150 + MAX_VISIBLE_PROCS * 26) {
-                    int idx = (my - 150) / 26;
-                    int valid_count = 0;
-                    int target_i = -1;
-                    for (int i = 0; i < proc_count; i++) {
-                        if (proc_list[i].pid != 0xFFFFFFFF) {
-                            if (valid_count == idx) { target_i = i; break; }
-                            valid_count++;
+                bool clicked = (ev.type == GUI_EVENT_CLICK);
+                bool down = (ev.type == GUI_EVENT_MOUSE_DOWN);
+
+                // Handle scrollbar
+                if (widget_scrollbar_handle_mouse(&proc_sb, mx, my, down, NULL)) {
+                    needs_redraw = true;
+                } else if (clicked) {
+                    // Handle process selection
+                    int list_x = 10;
+                    int list_y = 150;
+                    int list_h = 480 - 150 - 80;
+                    int row_h = 26;
+
+                    if (mx >= list_x && mx < list_x + 380 && my >= list_y && my < list_y + list_h) {
+                        int idx = (my - list_y + scroll_offset) / row_h;
+                        if (idx >= 0 && idx < proc_count) {
+                            selected_proc = idx;
+                        } else {
+                            selected_proc = -1;
                         }
-                    }
-                    if (target_i != -1) selected_proc = idx;
-                    else selected_proc = -1;
-                    
-                    draw_taskman();
-                    ui_mark_dirty(win_taskman, 0, 0, 400, 480);
-                } else if (mx >= 290 && mx < 390 && my >= 410 && my < 440) {
-                    if (selected_proc != -1) {
-                        int valid_count = 0;
-                        for (int i = 0; i < proc_count; i++) {
-                            if (proc_list[i].pid != 0xFFFFFFFF) {
-                                if (valid_count == selected_proc) {
-                                    if (proc_list[i].pid != 0) sys_kill(proc_list[i].pid);
-                                    break;
-                                }
-                                valid_count++;
-                            }
+                        needs_redraw = true;
+                    } else if (mx >= 290 && mx < 390 && my >= 410 && my < 440) {
+                        // Kill button
+                        if (selected_proc != -1) {
+                            if (proc_list[selected_proc].pid != 0) sys_kill(proc_list[selected_proc].pid);
+                            selected_proc = -1;
+                            update_proc_list();
+                            needs_redraw = true;
                         }
-                        selected_proc = -1;
-                        update_proc_list();
-                        draw_taskman();
-                        ui_mark_dirty(win_taskman, 0, 0, 400, 480);
                     }
                 }
+            } else if (ev.type == GUI_EVENT_MOUSE_MOVE) {
+                if (proc_sb.is_dragging) {
+                    widget_scrollbar_handle_mouse(&proc_sb, ev.arg1, ev.arg2, true, NULL);
+                    needs_redraw = true;
+                }
+            } else if (ev.type == GUI_EVENT_MOUSE_WHEEL) {
+                scroll_offset -= (ev.arg1 * 20); // 20px per notch
+                if (scroll_offset < 0) scroll_offset = 0;
+                int max_scroll = (proc_count * 26) - (480 - 150 - 80);
+                if (max_scroll < 0) max_scroll = 0;
+                if (scroll_offset > max_scroll) scroll_offset = max_scroll;
+                needs_redraw = true;
             } else if (ev.type == GUI_EVENT_PAINT) {
-                draw_taskman();
-                ui_mark_dirty(win_taskman, 0, 0, 400, 480);
+                needs_redraw = true;
             }
         }
         
-        update_proc_list();
-        draw_taskman();
-        ui_mark_dirty(win_taskman, 0, 0, 400, 480);
+        if (last_update++ >= 30) {
+            update_proc_list();
+            needs_redraw = true;
+            last_update = 0;
+        }
         
-        // Proper blocking sleep (200ms)
-        sys_system(SYSTEM_CMD_SLEEP, 200, 0, 0, 0);
+        if (needs_redraw) {
+            draw_taskman();
+            ui_mark_dirty(win_taskman, 0, 0, 400, 480);
+        }
+        
+        sys_system(SYSTEM_CMD_SLEEP, 16, 0, 0, 0);
     }
     
     return 0;

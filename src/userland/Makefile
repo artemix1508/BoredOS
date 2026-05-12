@@ -5,7 +5,7 @@ CC = x86_64-elf-gcc
 AS = nasm
 LD = x86_64-elf-ld
 
-CFLAGS = -Wall -Wextra -std=gnu11 -ffreestanding -O2 -fno-stack-protector -fno-stack-check -fno-lto -fno-pie -m64 -march=x86-64 -mno-red-zone -I. -Ilibc -I../sys
+CFLAGS = -Wall -Wextra -std=gnu11 -ffreestanding -O2 -fno-stack-protector -fno-stack-check -fno-lto -fno-pie -m64 -march=x86-64 -mno-red-zone -I. -Ilibc -I../sys -I../wm
 LDFLAGS = -m elf_x86_64 -nostdlib -static -no-pie -Ttext=0x40000000 --no-dynamic-linker -z text -z max-page-size=0x1000 -e _start
 
 BIN_DIR = bin
