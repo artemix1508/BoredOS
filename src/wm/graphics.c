@@ -9,6 +9,9 @@
 #include "../mem/memory_manager.h"
 #include "sys/spinlock.h"
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 static struct limine_framebuffer *g_fb = NULL;
 static uint32_t g_bg_color = 0xFF696969;
 
@@ -122,7 +125,9 @@ int graphics_get_fb_bpp(void) {
     return g_fb ? g_fb->bpp : 0;
 }
 
-// Merge new dirty rect with existing one
+// faltten the structure, cache the edges, calculate the right and bottom edges
+// calculate a new bounding box with some of my clever branchless math
+// and perform exactly 1 Write to memory
 static void merge_dirty_rect(int x, int y, int w, int h) {
     if (!g_dirty.active) {
         g_dirty.x = x;
@@ -130,47 +135,54 @@ static void merge_dirty_rect(int x, int y, int w, int h) {
         g_dirty.w = w;
         g_dirty.h = h;
         g_dirty.active = true;
-    } else {
-        // Calculate union of two rectangles
-        int x1 = g_dirty.x;
-        int y1 = g_dirty.y;
-        int x2 = g_dirty.x + g_dirty.w;
-        int y2 = g_dirty.y + g_dirty.h;
-        
-        int new_x1 = x;
-        int new_y1 = y;
-        int new_x2 = x + w;
-        int new_y2 = y + h;
-        
-        g_dirty.x = new_x1 < x1 ? new_x1 : x1;
-        g_dirty.y = new_y1 < y1 ? new_y1 : y1;
-        g_dirty.w = (new_x2 > x2 ? new_x2 : x2) - g_dirty.x;
-        g_dirty.h = (new_y2 > y2 ? new_y2 : y2) - g_dirty.y;
+        return; 
     }
+
+    int gx = g_dirty.x;
+    int gy = g_dirty.y;
+    
+    int gx2 = gx + g_dirty.w;
+    int gy2 = gy + g_dirty.h;
+    int nx2 = x + w;
+    int ny2 = y + h;
+
+    int new_x = MIN(gx, x);
+    int new_y = MIN(gy, y);
+    int new_x2 = MAX(gx2, nx2);
+    int new_y2 = MAX(gy2, ny2);
+
+    g_dirty.x = new_x;
+    g_dirty.y = new_y;
+    g_dirty.w = new_x2 - new_x;
+    g_dirty.h = new_y2 - new_y;
 }
 
 void graphics_mark_dirty(int x, int y, int w, int h) {
-    if (x < 0) {
-        w += x;
-        x = 0;
-    }
-    if (y < 0) {
-        h += y;
-        y = 0;
-    }
-    if (x + w > get_screen_width()) {
-        w = get_screen_width() - x;
-    }
-    if (y + h > get_screen_height()) {
-        h = get_screen_height() - y;
-    }
-    
     if (w <= 0 || h <= 0) {
         return;
     }
-    
+
+    int x2 = x + w;
+    int y2 = y + h;
+
+    //  Cache screen boundaries because then we can avoid multiple calls
+    int screen_w = get_screen_width();
+    int screen_h = get_screen_height();
+
+    int cx1 = MAX(0, x);
+    int cy1 = MAX(0, y);
+    int cx2 = MIN(screen_w, x2);
+    int cy2 = MIN(screen_h, y2);
+
+    int cw = cx2 - cx1;
+    int ch = cy2 - cy1;
+
+    if (cw <= 0 || ch <= 0) {
+        return;
+    }
+
     uint64_t flags = spinlock_acquire_irqsave(&graphics_lock);
-    merge_dirty_rect(x, y, w, h);
+    merge_dirty_rect(cx1, cy1, cw, ch);
     spinlock_release_irqrestore(&graphics_lock, flags);
 }
 
