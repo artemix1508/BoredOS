@@ -1033,10 +1033,6 @@ static int bsh_open_file(const char *path, const char *mode, bool *is_kernel) {
     return sys_open(path, mode);
 }
 
-static void wait_for_pid(int pid) {
-    wait_for_pid_status(pid, NULL);
-}
-
 static void cmd_clear(void) {
     sys_write(1, "\x1b[2J\x1b[H", 7);
 }
