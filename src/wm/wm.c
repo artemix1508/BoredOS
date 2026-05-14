@@ -220,6 +220,8 @@ static int pending_dock_click_index = -1;
 static int dock_drag_source_index = -1;
 static bool dock_drag_active = false;
 static int pending_desktop_icon_click = -1; 
+static int drag_repaint_accum_x = 0;
+static int drag_repaint_accum_y = 0;
 
 // Desktop Context Menu
 static bool desktop_menu_visible = false;
@@ -3362,10 +3364,22 @@ static void wm_handle_mouse_internal(int dx, int dy, uint8_t buttons, int dz) {
     } else if (right && !prev_right) {
         wm_handle_right_click(mx, my);
     } else if (left && is_dragging && drag_window) {
+        int old_x = drag_window->x;
+        int old_y = drag_window->y;
         drag_window->x = mx - drag_offset_x;
         drag_window->y = my - drag_offset_y;
-        // Mark for full redraw since window moved
-        force_redraw = true;
+        
+        drag_repaint_accum_x += (drag_window->x - old_x < 0 ? -(drag_window->x - old_x) : (drag_window->x - old_x));
+        drag_repaint_accum_y += (drag_window->y - old_y < 0 ? -(drag_window->y - old_y) : (drag_window->y - old_y));
+        
+        // Only repaint if we've moved at least 2px because we dont wanna redraw for subpixels
+        if (drag_repaint_accum_x >= 2 || drag_repaint_accum_y >= 2) {
+            wm_mark_dirty(old_x - 2, old_y - 2, drag_window->w + 4, drag_window->h + 4);
+            wm_mark_dirty(drag_window->x - 2, drag_window->y - 2, drag_window->w + 4, drag_window->h + 4);
+            drag_repaint_accum_x = 0;
+            drag_repaint_accum_y = 0;
+        }
+
     } else if (left && is_resizing && drag_window) {
         int new_w = mx - drag_window->x + (drag_start_w - drag_offset_x);
         int new_h = my - drag_window->y + (drag_start_h - drag_offset_y);
