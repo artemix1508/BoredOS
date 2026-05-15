@@ -26,7 +26,6 @@ int main(int argc, char *argv[]) {
     if (argc == 2 && strcmp(argv[1], "--help") == 0) {
         printf("Reverses the contents of a file or text\n");
         printf("Usage: rev [file]\n");
-        printf("       echo text | rev\n");
         return 0;
     }
 
