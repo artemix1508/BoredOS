@@ -14,7 +14,7 @@ void get_os_info(os_info_t *info) {
 
     const char *os_name = "BoredOS";
     const char *os_version = "26.6.0-rc1";
-    const char *os_codename = "Aimless Albatros";
+    const char *os_codename = "Aimless Albatross";
     const char *kernel_name = "Boredkernel";
     const char *kernel_version = "4.5.0-rc1";
     const char *build_date = __DATE__;
