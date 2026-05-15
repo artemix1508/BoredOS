@@ -23,6 +23,12 @@ int main(int argc, char *argv[]) {
         printf("Wrong input, use --help for more info\n");
         return 1;
     }
+    if (argc == 2 && strcmp(argv[1], "--help") == 0) {
+        printf("Reverses the contents of a file or text\n");
+        printf("Usage: rev [file]\n");
+        printf("       echo text | rev\n");
+        return 0;
+    }
 
     FILE *fp = fopen(argv[1], "r");
     // check if the argument is a file or not by opening it
