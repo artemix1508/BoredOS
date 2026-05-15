@@ -35,7 +35,7 @@
 #include "sys/bootfs_state.h"
 #include "input/keymap.h"
 #include "input/keyboard.h"
-#include "../drivers/acpi.h"
+#include "../drivers/ACPI/acpi.h"
 
 extern void sysfs_init_subsystems(void);
 
@@ -134,7 +134,7 @@ void serial_write(const char *str) {
     spinlock_release_irqrestore(&serial_lock, flags);
 }
 
-static void serial_write_num_locked(uint32_t n) {
+void serial_write_num_locked(uint32_t n) {
     if (n >= 10) serial_write_num_locked(n / 10);
     char c = '0' + (n % 10);
     while ((inb(0x3F8 + 5) & 0x20) == 0);
@@ -148,7 +148,7 @@ void serial_write_num(uint32_t n) {
     spinlock_release_irqrestore(&serial_lock, flags);
 }
 
-static void serial_write_hex_locked(uint64_t n) {
+void serial_write_hex_locked(uint64_t n) {
     char *hex = "0123456789ABCDEF";
     if (n >= 16) serial_write_hex_locked(n / 16);
     char c = hex[n % 16];
@@ -378,7 +378,7 @@ void kmain(void) {
     acpi_init();
     
     process_init();
-    
+
     fat32_init();
     log_ok("FAT32 ready");
 
@@ -493,16 +493,23 @@ void kmain(void) {
     serial_write_hex(current_rsp);
     serial_write("\n");
 
+    serial_write("[DBG] before graphics_init_fonts\n");
     graphics_init_fonts();
+    serial_write("[DBG] after graphics_init_fonts\n");
 
-    asm("cli");
+    serial_write("[DBG] before ps2_init\n");
     ps2_init();
-    asm("sti");
+    serial_write("[DBG] after ps2_init\n");
+    asm("sti");  // Enable interrupts 
 
+    serial_write("[DBG] before keymap_init\n");
     keymap_init();
-    serial_write("[INIT] Keymap initialized");
+    serial_write("[DBG] after keymap_init\n");
+    serial_write("[INIT] Keymap initialized\n");
 
+    serial_write("[DBG] before lapic_init\n");
     lapic_init();
+    serial_write("[DBG] after lapic_init\n");
 
     if (smp_request.response != NULL) {
         uint32_t online = smp_init(smp_request.response);

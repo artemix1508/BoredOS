@@ -121,7 +121,7 @@ static void ap_entry(struct limine_smp_info *info) {
 }
 
 void smp_init_bsp(void) {
-    static cpu_state_t bsp_state_static = {0};
+    static cpu_state_t bsp_state_static __attribute__((aligned(64))) = {0};
     bsp_state_static.cpu_id = 0;
     bsp_lapic_id = read_lapic_id();
     bsp_state_static.lapic_id = bsp_lapic_id;
@@ -138,7 +138,7 @@ void smp_init_bsp(void) {
 uint32_t smp_init(struct limine_smp_response *smp_resp) {
     if (!smp_resp || smp_resp->cpu_count <= 1) {
         total_cpus = 1;
-        cpu_states = (cpu_state_t *)kmalloc(sizeof(cpu_state_t));
+        cpu_states = (cpu_state_t *)kmalloc_aligned(sizeof(cpu_state_t), 64);
         if (!cpu_states) return 1;
         extern void mem_memset(void *, int, size_t);
         mem_memset(cpu_states, 0, sizeof(cpu_state_t));
@@ -158,7 +158,7 @@ uint32_t smp_init(struct limine_smp_response *smp_resp) {
     serial_write_num(bsp_lapic_id);
     serial_write("\n");
 
-    cpu_states = (cpu_state_t *)kmalloc(total_cpus * sizeof(cpu_state_t));
+    cpu_states = (cpu_state_t *)kmalloc_aligned(total_cpus * sizeof(cpu_state_t), 64);
     if (!cpu_states) {
         serial_write("[SMP] ERROR: Failed to allocate CPU state array!\n");
         total_cpus = 1;
@@ -230,4 +230,9 @@ uint32_t smp_init(struct limine_smp_response *smp_resp) {
     serial_write(" CPUs online\n");
 
     return online_count;
+}
+
+uint32_t smp_get_lapic_id(uint32_t cpu_id) {
+    if (cpu_id >= total_cpus || !cpu_states) return 0xFF;
+    return cpu_states[cpu_id].lapic_id;
 }

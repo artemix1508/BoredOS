@@ -244,10 +244,10 @@ void wallpaper_init(void) {
         wallpaper_load_setting();
         
         if (pending_wallpaper_path == NULL) {
-            if (fat32_exists("/Library/images/Wallpapers/boredos.png")) {
-                wallpaper_request_set_from_file("/Library/images/Wallpapers/boredos.png");
-            } else if (fat32_exists("/Library/images/Wallpapers/mountain.jpg")) {
-                wallpaper_request_set_from_file("/Library/images/Wallpapers/mountain.jpg");
+            if (fat32_exists("/Library/images/Wallpapers/Drift.png")) {
+                wallpaper_request_set_from_file("/Library/images/Wallpapers/Drift.png");
+            } else if (fat32_exists("/Library/images/Wallpapers/orbital.jpg")) {
+                wallpaper_request_set_from_file("/Library/images/Wallpapers/orbital.jpg");
             }
         }
     }

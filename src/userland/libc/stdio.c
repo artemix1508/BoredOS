@@ -152,10 +152,9 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
         return 0;
     }
     total = size * nmemb;
-    if (stream->fd <= 2) {
+    n = sys_write_fs(stream->fd, ptr, (uint32_t)total);
+    if (n < 0 && stream->fd <= 2) {
         n = sys_write(stream->fd, (const char *)ptr, (int)total);
-    } else {
-        n = sys_write_fs(stream->fd, ptr, (uint32_t)total);
     }
     if (n < 0) {
         stream->err = 1;

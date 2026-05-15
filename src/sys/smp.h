@@ -17,6 +17,7 @@ typedef struct cpu_state {
     volatile bool online;      
     uint64_t user_rsp_scratch;  
     uint64_t kernel_syscall_stack; 
+    uint8_t xsave_area[8192] __attribute__((aligned(64)));
 } cpu_state_t;
  
  void smp_init_bsp(void);
@@ -30,5 +31,7 @@ uint32_t smp_this_cpu_id(void);
 uint32_t smp_cpu_count(void);
 
 cpu_state_t *smp_get_cpu(uint32_t cpu_id);
+
+uint32_t smp_get_lapic_id(uint32_t cpu_id);
 
 #endif

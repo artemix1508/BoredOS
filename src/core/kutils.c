@@ -5,17 +5,19 @@
 #include "wm.h"
 #include "io.h"
 
-#include "../drivers/acpi.h"
+#include "../drivers/ACPI/acpi.h"
 
-void memset(void *dest, int val, size_t len) {
+void *memset(void *dest, int val, size_t len) {
     unsigned char *ptr = (unsigned char *)dest;
     while (len-- > 0) *ptr++ = (unsigned char)val;
+    return dest;
 }
 
-void memcpy(void *dest, const void *src, size_t len) {
+void *memcpy(void *dest, const void *src, size_t len) {
     unsigned char *d = (unsigned char *)dest;
     const unsigned char *s = (const unsigned char *)src;
     while (len-- > 0) *d++ = *s++;
+    return dest;
 }
 
 int memcmp(const void *str1, const void *str2, size_t count) {
@@ -73,6 +75,20 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 void strcpy(char *dest, const char *src) {
     while (*src) *dest++ = *src++;
     *dest = 0;
+}
+
+char *strncpy(char *dest, const char *src, size_t n) {
+    size_t i;
+
+    for (i = 0; i < n && src[i] != '\0'; i++) {
+        dest[i] = src[i];
+    }
+
+    for (; i < n; i++) {
+        dest[i] = '\0';
+    }
+
+    return dest;
 }
 
 int atoi(const char *str) {
