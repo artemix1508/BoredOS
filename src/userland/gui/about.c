@@ -80,7 +80,7 @@ static void load_branding_image(void) {
 }
 
 static void about_paint(ui_window_t win) {
-    int w = 380;
+    int w = 420;
     int h = 260;
     
     ui_draw_rect(win, 0, 0, w, h, 0xFF1E1E1E);
@@ -142,7 +142,7 @@ static void about_paint(ui_window_t win) {
 
 int main(void) {
     load_branding_image();
-    ui_window_t win_about = ui_window_create("About BoredOS", 250, 180, 380, 260);
+    ui_window_t win_about = ui_window_create("About BoredOS", 250, 180, 420, 260);
     
     about_paint(win_about);
     
