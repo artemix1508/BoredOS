@@ -5,9 +5,13 @@
 #include <syscall.h>
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
+
     uint64_t help_color = sys_get_shell_config("help_color");
-    if (help_color != 0) sys_set_text_color(help_color);
+    if (help_color != 0) {
+        sys_set_text_color(help_color);
+    }
 
     printf("BoredOS CLI Help\n");
     printf("---------------------------\n");
@@ -37,10 +41,12 @@ int main(int argc, char **argv) {
     printf("clear          - Clear the screen\n");
     printf("exit           - Exit the terminal\n");
     printf("net            - Network tools\n");
-    printf("find           - find files or folders\n");
-    printf("rev            - Reverse a string or file\n");
-    printf("head           - print lines from the top down\n");
-    printf("tail           - print lines from the bottom up\n");
-    printf("time <cmd>     - Measure command execution time\n");
+    printf("find       - find files or folders\n");
+    printf("rev        - Reverse a string or file\n");
+    printf("head       - print lines from the top down\n");
+    printf("tail       - print lines from the bottom up\n");
+    printf("time <cmd> - Measure command execution time\n");
     printf("\nHint: Use Ctrl+C to force quit any running application.\n");
+
     return 0;
+}
