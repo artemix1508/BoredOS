@@ -391,13 +391,9 @@ __attribute__((weak)) ssize_t write(int fd, const void *buf, size_t count) {
         return (ssize_t)n;
     }
 
-    if (_b_is_stdio_handle(h)) {
+    n = sys_write_fs(h->kernel_fd, buf, (uint32_t)count);
+    if (n < 0 && _b_is_stdio_handle(h)) {
         n = sys_write(h->kernel_fd, (const char *)buf, (int)count);
-    } else {
-        n = sys_write_fs(h->kernel_fd, buf, (uint32_t)count);
-        if (n < 0) {
-            n = sys_write(h->kernel_fd, (const char *)buf, (int)count);
-        }
     }
 
     if (n < 0) {

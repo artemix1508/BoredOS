@@ -2522,8 +2522,18 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
 static uint64_t handle_sys_write(const syscall_args_t *args) {
     extern void cmd_write_len(const char *str, size_t len);
     process_t *proc = process_get_current();
+    int fd = (int)args->arg1;
     const char *buf = (const char*)args->arg2;
     size_t len = (size_t)args->arg3;
+
+    if (proc && fd >= 0 && fd < MAX_PROCESS_FDS && proc->fds[fd]) {
+        syscall_args_t fs_args = *args;
+        fs_args.arg2 = args->arg1; // fd
+        fs_args.arg3 = args->arg2; // buf
+        fs_args.arg4 = args->arg3; // len
+        return fs_cmd_write(&fs_args);
+    }
+
     if (!proc || !proc->is_user) {
         cmd_write_len(buf, len);
         return len;

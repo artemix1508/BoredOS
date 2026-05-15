@@ -11,6 +11,8 @@
 #include "input/keyboard.h"
 #include "input/keymap.h"
 
+extern void serial_write(const char *s);
+extern void serial_write_num(uint32_t n);
 extern void serial_print(const char *s);
 extern void serial_print_hex(uint64_t n);
 

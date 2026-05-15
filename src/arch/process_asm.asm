@@ -18,7 +18,7 @@ process_jump_usermode:
 
     ; Build the IRETQ stack frame
     ; 1. SS (User Data Segment)
-    push 0x23
+    push 0x1B
     
     ; 2. RSP (User Stack)
     push rsi
@@ -27,7 +27,7 @@ process_jump_usermode:
     push 0x202
     
     ; 4. CS (User Code Segment)
-    push 0x1B
+    push 0x23
     
     ; 5. RIP (Entry Point)
     push rdi
@@ -40,6 +40,12 @@ process_jump_usermode:
 global context_switch_to
 context_switch_to:
     mov rsp, rdi
+    mov rcx, [rsp + 8192]
+    xor ecx, ecx
+    xgetbv
+    xrstor [rsp]
+    add rsp, 8192
+    add rsp, rcx
     
     pop r15
     pop r14

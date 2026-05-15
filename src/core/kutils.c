@@ -7,15 +7,17 @@
 
 #include "../drivers/ACPI/acpi.h"
 
-void memset(void *dest, int val, size_t len) {
+void *memset(void *dest, int val, size_t len) {
     unsigned char *ptr = (unsigned char *)dest;
     while (len-- > 0) *ptr++ = (unsigned char)val;
+    return dest;
 }
 
-void memcpy(void *dest, const void *src, size_t len) {
+void *memcpy(void *dest, const void *src, size_t len) {
     unsigned char *d = (unsigned char *)dest;
     const unsigned char *s = (const unsigned char *)src;
     while (len-- > 0) *d++ = *s++;
+    return dest;
 }
 
 int memcmp(const void *str1, const void *str2, size_t count) {
