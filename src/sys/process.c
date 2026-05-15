@@ -17,6 +17,7 @@
 
 extern void cmd_write(const char *str);
 extern void serial_write(const char *str);
+extern void serial_write_num(uint32_t n);
 
 #define MAX_PROCESSES 16
 #define MAX_CPUS_SCHED 32
@@ -507,7 +508,7 @@ process_t* process_create_elf(const char* filepath, const char* args_str, bool t
     asm volatile("fninit");
     new_proc->fpu_initialized = true;
 
-    // Assign to an AP core via round-robin (if SMP is active)
+    // Assign to a CPU core via round-robin across APs (if SMP is active)
     uint32_t cpu_count = smp_cpu_count();
     if (cpu_count > 1) {
         new_proc->cpu_affinity = next_cpu_assign;
@@ -517,15 +518,29 @@ process_t* process_create_elf(const char* filepath, const char* args_str, bool t
         new_proc->cpu_affinity = 0;
     }
 
-    // Add to linked list (Critical Section)
+   
     rflags = spinlock_acquire_irqsave(&runqueue_lock);
-    new_proc->next = current_process[0]->next;
-    current_process[0]->next = new_proc;
+    uint32_t target_cpu = new_proc->cpu_affinity;
+    process_t *target_head = current_process[target_cpu];
+    if (target_head) {
+        new_proc->next = target_head->next;
+        target_head->next = new_proc;
+    } else {
+        new_proc->next = new_proc;
+        current_process[target_cpu] = new_proc;
+    }
     spinlock_release_irqrestore(&runqueue_lock, rflags);
     
     serial_write("[PROC] Exec: ");
     serial_write(filepath);
+    serial_write(" on CPU ");
+    serial_write_num(new_proc->cpu_affinity);
     serial_write("\n");
+    uint32_t target_lapic = smp_get_lapic_id(new_proc->cpu_affinity);
+    if (target_lapic != 0xFF) {
+        lapic_send_ipi(target_lapic, IPI_SCHED_VECTOR);
+    }
+
     return new_proc;
 }
 

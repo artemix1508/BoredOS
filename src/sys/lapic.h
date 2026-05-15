@@ -21,4 +21,7 @@ void lapic_eoi(void);
 // Send a scheduling IPI to all APs (excludes self)
 void lapic_send_ipi_all(void);
 
+// Send a targeted IPI to a specific LAPIC ID
+void lapic_send_ipi(uint32_t lapic_id, uint8_t vector);
+
 #endif

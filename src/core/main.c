@@ -493,16 +493,23 @@ void kmain(void) {
     serial_write_hex(current_rsp);
     serial_write("\n");
 
+    serial_write("[DBG] before graphics_init_fonts\n");
     graphics_init_fonts();
+    serial_write("[DBG] after graphics_init_fonts\n");
 
-    asm("cli");
+    serial_write("[DBG] before ps2_init\n");
     ps2_init();
-    asm("sti");
+    serial_write("[DBG] after ps2_init\n");
+    asm("sti");  // Enable interrupts 
 
+    serial_write("[DBG] before keymap_init\n");
     keymap_init();
-    serial_write("[INIT] Keymap initialized");
+    serial_write("[DBG] after keymap_init\n");
+    serial_write("[INIT] Keymap initialized\n");
 
+    serial_write("[DBG] before lapic_init\n");
     lapic_init();
+    serial_write("[DBG] after lapic_init\n");
 
     if (smp_request.response != NULL) {
         uint32_t online = smp_init(smp_request.response);
