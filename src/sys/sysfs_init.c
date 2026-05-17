@@ -5,7 +5,7 @@
 #include "module_manager.h"
 #include "io.h"
 #include "core/kutils.h"
-#include "wm/graphics.h"
+#include "graphics/graphics.h"
 #include "core/platform.h"
 #include "dev/disk.h"
 
