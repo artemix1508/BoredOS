@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-typedef struct Window Window;
 typedef struct registers_t registers_t;
 
 typedef struct {
@@ -30,7 +29,6 @@ typedef struct {
 // Syscall Numbers
 typedef enum {
     SYS_WRITE = 1,
-    SYS_GUI = 3,
     SYS_FS = 4,
     SYS_SYSTEM = 5,
     SYS_MMAP = 11,
@@ -76,38 +74,12 @@ typedef enum {
 } fs_cmd_t;
 
 typedef enum {
-    SYSTEM_CMD_SET_BG_COLOR = 1,
-    SYSTEM_CMD_SET_BG_PATTERN = 2,
-    SYSTEM_CMD_SET_WALLPAPER = 3,
-    SYSTEM_CMD_SET_DESKTOP_PROP = 4,
-    SYSTEM_CMD_SET_MOUSE_SPEED = 5,
     SYSTEM_CMD_NETWORK_INIT = 6,
-    SYSTEM_CMD_GET_DESKTOP_PROP = 7,
-    SYSTEM_CMD_GET_MOUSE_SPEED = 8,
-    SYSTEM_CMD_GET_WALLPAPER_THUMB = 9,
-    SYSTEM_CMD_CLEAR_SCREEN = 10,
-    SYSTEM_CMD_RTC_GET = 11,
-    SYSTEM_CMD_REBOOT = 12,
-    SYSTEM_CMD_SHUTDOWN = 13,
-    SYSTEM_CMD_BEEP = 14,
-    SYSTEM_CMD_GET_MEM_INFO = 15,
-    SYSTEM_CMD_GET_TICKS = 16,
-    SYSTEM_CMD_PCI_LIST = 17,
-    SYSTEM_CMD_NETWORK_DHCP = 18,
-    SYSTEM_CMD_NETWORK_GET_MAC = 19,
-    SYSTEM_CMD_NETWORK_GET_IP = 20,
-    SYSTEM_CMD_NETWORK_SET_IP = 21,
-    SYSTEM_CMD_UDP_SEND = 22,
-    SYSTEM_CMD_NETWORK_GET_STATS = 23,
-    SYSTEM_CMD_NETWORK_GET_GATEWAY = 24,
-    SYSTEM_CMD_NETWORK_GET_DNS = 25,
-    SYSTEM_CMD_ICMP_PING = 26,
-    SYSTEM_CMD_NETWORK_IS_INIT = 27,
     SYSTEM_CMD_GET_SHELL_CONFIG = 28,
     SYSTEM_CMD_SET_TEXT_COLOR = 29,
     SYSTEM_CMD_NETWORK_HAS_IP = 30,
-    SYSTEM_CMD_SET_WALLPAPER_PATH = 31,
     SYSTEM_CMD_RTC_SET = 32,
+    SYSTEM_CMD_RTC_GET = 11,
     SYSTEM_CMD_TCP_CONNECT = 33,
     SYSTEM_CMD_TCP_SEND = 34,
     SYSTEM_CMD_TCP_RECV = 35,
@@ -120,13 +92,10 @@ typedef enum {
     SYSTEM_CMD_TCP_RECV_NB = 42,
     SYSTEM_CMD_YIELD = 43,
     SYSTEM_CMD_SLEEP = 46,
-    SYSTEM_CMD_SET_RESOLUTION = 47,
     SYSTEM_CMD_NETWORK_GET_NIC_NAME = 48,
     SYSTEM_CMD_SET_KEYBOARD_LAYOUT = 49,
     SYSTEM_CMD_PARALLEL_RUN = 50,
     SYSTEM_CMD_GET_KEYBOARD_LAYOUT = 51,
-    SYSTEM_CMD_SET_MOUSE_CURSOR_SCALE = 52,
-    SYSTEM_CMD_GET_MOUSE_CURSOR_SCALE = 53,
     SYSTEM_CMD_TTY_CREATE = 60,
     SYSTEM_CMD_TTY_READ_OUT = 61,
     SYSTEM_CMD_TTY_WRITE_IN = 62,
@@ -150,10 +119,5 @@ typedef enum {
 
 void syscall_init(void);
 uint64_t syscall_handler_c(registers_t *regs);
-
-// Mouse event helpers for WM
-void syscall_send_mouse_move_event(Window *win, int x, int y, uint8_t buttons);
-void syscall_send_mouse_down_event(Window *win, int x, int y);
-void syscall_send_mouse_up_event(Window *win, int x, int y);
 
 #endif // SYSCALL_H
