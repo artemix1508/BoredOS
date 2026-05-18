@@ -58,6 +58,7 @@
 #define SYSTEM_CMD_EXEC       70
 #define SYSTEM_CMD_WAITPID    71
 #define SYSTEM_CMD_KILL_SIGNAL 72
+#define SYSTEM_CMD_FORK       80
 
 // Futex operations
 #define BORED_FUTEX_WAIT 0
@@ -137,6 +138,25 @@ struct bored_rtc {
 namespace mlibc {
 
 extern "C" void *__dso_handle = nullptr;
+
+struct boredos_fat_file_info_t {
+    char name[256];
+    uint32_t size;
+    uint8_t is_directory;
+    uint32_t start_cluster;
+    uint16_t write_date;
+    uint16_t write_time;
+};
+
+struct BoredDirHandle {
+    char path[256];
+    boredos_fat_file_info_t *entries;
+    int entry_count;
+    int current_index;
+    bool active;
+};
+
+static BoredDirHandle open_dirs[16];
 
 // --- Exit ---
 void SysdepImpl<Exit>::operator()(int status) {
@@ -226,6 +246,17 @@ int SysdepImpl<Seek>::operator()(int fd, off_t offset, int whence, off_t *new_of
 
 // --- Close ---
 int SysdepImpl<Close>::operator()(int fd) {
+    if (fd >= 1000 && fd < 1016) {
+        int slot = fd - 1000;
+        if (open_dirs[slot].active) {
+            if (open_dirs[slot].entries) {
+                __builtin_free(open_dirs[slot].entries);
+                open_dirs[slot].entries = nullptr;
+            }
+            open_dirs[slot].active = false;
+        }
+        return 0;
+    }
     _sc2(BORED_SYS_FS, (uint64_t)FS_CMD_CLOSE, (uint64_t)fd);
     return 0;
 }
@@ -396,10 +427,35 @@ int SysdepImpl<Ioctl>::operator()(int fd, unsigned long request, void *arg, int 
 // --- stat / fstat ---
 int SysdepImpl<Stat>::operator()(mlibc::fsfd_target fsfdt, int fd, const char *path,
                                  int flags, struct stat *result) {
-    (void)fsfdt; (void)fd; (void)path; (void)flags;
+    (void)flags;
     if (!result) return EFAULT;
     __builtin_memset(result, 0, sizeof(*result));
-    result->st_mode = 0100644;
+
+    if (fsfdt == mlibc::fsfd_target::path) {
+        boredos_fat_file_info_t info = {};
+        int ret = (int)_sc3(BORED_SYS_FS,
+                            (uint64_t)14, // FS_CMD_GET_INFO
+                            (uint64_t)(uintptr_t)path,
+                            (uint64_t)(uintptr_t)&info);
+        if (ret < 0) return ENOENT;
+        
+        result->st_size = info.size;
+        if (info.is_directory) {
+            result->st_mode = 0040755; // S_IFDIR | 0755
+        } else {
+            result->st_mode = 0100644; // S_IFREG | 0644
+        }
+    } else {
+        // fd target
+        if (fd >= 0 && fd <= 2) {
+            result->st_mode = 0020666; // S_IFCHR | 0666
+            result->st_size = 0;
+        } else {
+            int size = (int)_sc2(BORED_SYS_FS, (uint64_t)9, (uint64_t)fd); // FS_CMD_SIZE
+            result->st_size = size >= 0 ? size : 0;
+            result->st_mode = 0100644; // S_IFREG | 0644
+        }
+    }
     return 0;
 }
 
@@ -454,8 +510,12 @@ int SysdepImpl<Chdir>::operator()(const char *path) {
 
 // --- fork ---
 int SysdepImpl<Fork>::operator()(pid_t *child) {
-    (void)child;
-    return ENOSYS;
+    int ret = (int)_sc2(BORED_SYS_SYSTEM,
+                        (uint64_t)SYSTEM_CMD_FORK,
+                        0ULL);
+    if (ret < 0) return -ret;
+    *child = ret;
+    return 0;
 }
 
 // --- execve ---
@@ -521,15 +581,133 @@ int SysdepImpl<Isatty>::operator()(int fd) {
 
 // --- opendir / readentries ---
 int SysdepImpl<OpenDir>::operator()(const char *path, int *handle) {
-    (void)path;
-    *handle = -1;
-    return ENOSYS;
+    // Find free slot
+    int slot = -1;
+    for (int i = 0; i < 16; i++) {
+        if (!open_dirs[i].active) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot == -1) return EMFILE;
+
+    // Read entries using BORED_SYS_FS subcommand FS_CMD_LIST (7)
+    boredos_fat_file_info_t *ents = (boredos_fat_file_info_t *)__builtin_malloc(sizeof(boredos_fat_file_info_t) * 256);
+    if (!ents) return ENOMEM;
+
+    int count = (int)_sc4(BORED_SYS_FS,
+                         (uint64_t)7, // FS_CMD_LIST
+                         (uint64_t)(uintptr_t)path,
+                         (uint64_t)(uintptr_t)ents,
+                         256ULL);
+    if (count < 0) {
+        __builtin_free(ents);
+        return ENOENT;
+    }
+
+    open_dirs[slot].entries = ents;
+    open_dirs[slot].entry_count = count;
+    open_dirs[slot].current_index = 0;
+    __builtin_strncpy(open_dirs[slot].path, path, 255);
+    open_dirs[slot].active = true;
+
+    *handle = slot + 1000; // Offset to avoid overlapping with standard fds
+    return 0;
 }
 
 int SysdepImpl<ReadEntries>::operator()(int handle, void *buffer, size_t max_size, size_t *bytes_read) {
-    (void)handle; (void)buffer; (void)max_size;
-    *bytes_read = 0;
-    return ENOSYS;
+    int slot = handle - 1000;
+    if (slot < 0 || slot >= 16 || !open_dirs[slot].active) return EBADF;
+
+    BoredDirHandle &dir = open_dirs[slot];
+    if (dir.current_index >= dir.entry_count) {
+        *bytes_read = 0;
+        return 0;
+    }
+
+    // Format the entry into the buffer as a struct dirent
+    struct mlibc_dirent {
+        uint64_t d_ino;
+        int64_t d_off;
+        uint16_t d_reclen;
+        uint8_t d_type;
+        char d_name[256];
+    };
+
+    if (max_size < sizeof(mlibc_dirent)) {
+        return EINVAL;
+    }
+
+    mlibc_dirent *out = (mlibc_dirent *)buffer;
+    __builtin_memset(out, 0, sizeof(mlibc_dirent));
+
+    boredos_fat_file_info_t &in = dir.entries[dir.current_index];
+    
+    out->d_ino = dir.current_index + 1;
+    out->d_off = dir.current_index + 1;
+    out->d_reclen = sizeof(mlibc_dirent);
+    out->d_type = in.is_directory ? 4 : 8; // DT_DIR is 4, DT_REG is 8
+    __builtin_strncpy(out->d_name, in.name, 255);
+
+    dir.current_index++;
+    *bytes_read = sizeof(mlibc_dirent);
+    return 0;
+}
+
+// --- socket ---
+#define FS_CMD_UNIX_SOCKET_CREATE 25
+#define FS_CMD_UNIX_SOCKET_BIND 26
+#define FS_CMD_UNIX_SOCKET_LISTEN 27
+#define FS_CMD_UNIX_SOCKET_ACCEPT 28
+#define FS_CMD_UNIX_SOCKET_CONNECT 29
+
+int SysdepImpl<Socket>::operator()(int family, int type, int protocol, int *fd) {
+    int ret = (int)_sc4(BORED_SYS_FS,
+                        (uint64_t)FS_CMD_UNIX_SOCKET_CREATE,
+                        (uint64_t)family,
+                        (uint64_t)type,
+                        (uint64_t)protocol);
+    if (ret < 0) return EACCES;
+    *fd = ret;
+    return 0;
+}
+
+int SysdepImpl<Bind>::operator()(int fd, const struct sockaddr *addr_ptr, socklen_t addr_length) {
+    int ret = (int)_sc4(BORED_SYS_FS,
+                        (uint64_t)FS_CMD_UNIX_SOCKET_BIND,
+                        (uint64_t)fd,
+                        (uint64_t)(uintptr_t)addr_ptr,
+                        (uint64_t)addr_length);
+    return ret < 0 ? EACCES : 0;
+}
+
+int SysdepImpl<Listen>::operator()(int fd, int backlog) {
+    (void)backlog;
+    int ret = (int)_sc2(BORED_SYS_FS,
+                        (uint64_t)FS_CMD_UNIX_SOCKET_LISTEN,
+                        (uint64_t)fd);
+    return ret < 0 ? EACCES : 0;
+}
+
+int SysdepImpl<Connect>::operator()(int fd, const struct sockaddr *addr_ptr, socklen_t addr_length) {
+    int ret = (int)_sc4(BORED_SYS_FS,
+                        (uint64_t)FS_CMD_UNIX_SOCKET_CONNECT,
+                        (uint64_t)fd,
+                        (uint64_t)(uintptr_t)addr_ptr,
+                        (uint64_t)addr_length);
+    return ret < 0 ? ECONNREFUSED : 0;
+}
+
+int SysdepImpl<Accept>::operator()(int fd, int *newfd, struct sockaddr *addr_ptr, socklen_t *addr_length, int flags) {
+    (void)flags;
+    int ret = (int)_sc4(BORED_SYS_FS,
+                        (uint64_t)FS_CMD_UNIX_SOCKET_ACCEPT,
+                        (uint64_t)fd,
+                        (uint64_t)(uintptr_t)addr_ptr,
+                        (uint64_t)(uintptr_t)addr_length);
+    if (ret < 0) return ret == -2 ? EAGAIN : EACCES;
+    *newfd = ret;
+    return 0;
 }
 
 } // namespace mlibc
