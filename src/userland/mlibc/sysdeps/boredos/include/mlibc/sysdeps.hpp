@@ -48,6 +48,16 @@ struct BoredOSSysdepTags :
     Tcgetwinsize,
     Tcsetwinsize,
     Pselect,
+    // --- Sockets ---
+    Socket,
+    Bind,
+    Listen,
+    Connect,
+    Accept,
+    Sendto,
+    Recvfrom,
+    GetSockopt,
+    SetSockopt,
     // --- Process ---
     Fork,
     Execve,

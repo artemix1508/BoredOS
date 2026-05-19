@@ -232,13 +232,32 @@ static uint64_t fs_cmd_unix_socket_create(const syscall_args_t *args) {
     int type = (int)args->arg3;
     int protocol = (int)args->arg4;
 
-    if (!proc || domain != 1 || type != 1 || protocol != 0) return -1;
+    if (!proc || (domain != 1 && domain != 2) || type != 1 || protocol != 0) return -1;
 
     int fd = fs_alloc_fd_slot(proc, 0);
     if (fd < 0) return -1;
 
     process_fd_socket_t *sock = process_socket_create();
     if (!sock) return -1;
+
+    sock->domain = domain;
+    if (domain == 2) {
+        extern int network_is_initialized(void);
+        extern int network_init(void);
+        extern void serial_write(const char *str);
+        if (!network_is_initialized()) {
+            serial_write("[syscall] socket: domain=2 and network not initialized, initializing network stack...\n");
+            network_init();
+        }
+        sock->pcb = NULL;
+        sock->recv_queue = NULL;
+        sock->tcp_closed = 0;
+        sock->tcp_connect_error = 0;
+        sock->tcp_connect_done = 0;
+        sock->accept_queue_count = 0;
+        wait_queue_init(&sock->accept_waitq);
+        wait_queue_init(&sock->rx_waitq);
+    }
 
     proc->fds[fd] = sock;
     proc->fd_kind[fd] = PROC_FD_KIND_SOCKET;
@@ -247,41 +266,103 @@ static uint64_t fs_cmd_unix_socket_create(const syscall_args_t *args) {
 }
 
 static uint64_t fs_cmd_unix_socket_bind(const syscall_args_t *args) {
+    extern void serial_write(const char *str);
+    extern void serial_write_num(uint64_t n);
+    serial_write("[syscall] bind called\n");
+
     process_t *proc = process_get_current();
     int fd = (int)args->arg2;
     const void *addr = (const void *)args->arg3;
     uint64_t addrlen = args->arg4;
-    char path[108];
 
-    if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
-    if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
+    serial_write("[syscall] bind: fd="); serial_write_num(fd);
+    serial_write(" addrlen="); serial_write_num(addrlen);
+    serial_write("\n");
 
-    if (unix_register_listener(path, proc->pid, fd) < 0) return -1;
-
+    if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) {
+        serial_write("[syscall] bind: invalid fd or proc check failed\n");
+        return -1;
+    }
     process_fd_socket_t *sock = (process_fd_socket_t *)proc->fds[fd];
-    sock->is_bound = 1;
-    sock->is_listening = 0;
-    sock->is_connected = 0;
-    strncpy(sock->path, path, sizeof(sock->path) - 1);
-    return 0;
+    if (!sock) {
+        serial_write("[syscall] bind: sock is NULL\n");
+        return -1;
+    }
+
+    serial_write("[syscall] bind: domain="); serial_write_num(sock->domain);
+    serial_write("\n");
+
+    if (sock->domain == 2) {
+        if (addrlen < 8) {
+            serial_write("[syscall] bind: addrlen < 8\n");
+            return -1;
+        }
+        uint16_t family = *(const uint16_t *)addr;
+        serial_write("[syscall] bind: family="); serial_write_num(family);
+        serial_write("\n");
+
+        if (family != 2) {
+            serial_write("[syscall] bind: family != 2\n");
+            return -1; // Must be AF_INET
+        }
+
+        uint16_t sin_port = *(const uint16_t *)((const char *)addr + 2);
+        uint16_t port = ((sin_port & 0xFF) << 8) | ((sin_port >> 8) & 0xFF);
+        uint32_t ip_val = *(const uint32_t *)((const char *)addr + 4);
+
+        serial_write("[syscall] bind: port="); serial_write_num(port);
+        serial_write(" ip_val="); serial_write_num(ip_val);
+        serial_write("\n");
+
+        int bind_err = network_socket_bind(sock, ip_val, port);
+        serial_write("[syscall] bind: network_socket_bind returned ");
+        if (bind_err < 0) {
+            serial_write("-");
+            serial_write_num(-bind_err);
+        } else {
+            serial_write_num(bind_err);
+        }
+        serial_write("\n");
+
+        if (bind_err < 0) return bind_err;
+        sock->is_bound = 1;
+        sock->is_listening = 0;
+        sock->is_connected = 0;
+        return 0;
+    } else {
+        char path[108];
+        if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
+        if (unix_register_listener(path, proc->pid, fd) < 0) return -1;
+
+        sock->is_bound = 1;
+        sock->is_listening = 0;
+        sock->is_connected = 0;
+        strncpy(sock->path, path, sizeof(sock->path) - 1);
+        return 0;
+    }
 }
 
 static uint64_t fs_cmd_unix_socket_listen(const syscall_args_t *args) {
     process_t *proc = process_get_current();
     int fd = (int)args->arg2;
-    (void)args;
 
     if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
 
     process_fd_socket_t *sock = (process_fd_socket_t *)proc->fds[fd];
     if (!sock || !sock->is_bound) return -1;
 
-    unix_listener_t *lst = unix_find_listener_by_owner(proc->pid, fd);
-    if (!lst) return -1;
+    if (sock->domain == 2) {
+        if (network_socket_listen(sock) < 0) return -1;
+        sock->is_listening = 1;
+        return 0;
+    } else {
+        unix_listener_t *lst = unix_find_listener_by_owner(proc->pid, fd);
+        if (!lst) return -1;
 
-    unix_listener_set_listening(lst, 1);
-    sock->is_listening = 1;
-    return 0;
+        unix_listener_set_listening(lst, 1);
+        sock->is_listening = 1;
+        return 0;
+    }
 }
 
 static uint64_t fs_cmd_unix_socket_connect(const syscall_args_t *args) {
@@ -289,46 +370,62 @@ static uint64_t fs_cmd_unix_socket_connect(const syscall_args_t *args) {
     int fd = (int)args->arg2;
     const void *addr = (const void *)args->arg3;
     uint64_t addrlen = args->arg4;
-    char path[108];
     process_fd_socket_t *sock;
-    unix_listener_t *lst;
-    process_fd_pipe_t *c2s;
-    process_fd_pipe_t *s2c;
-    unix_pending_conn_t *pc;
 
     if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
     sock = (process_fd_socket_t *)proc->fds[fd];
     if (!sock || sock->is_connected) return -1;
-    if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
 
-    lst = unix_find_listener(path);
-    if (!lst || !unix_listener_is_listening(lst)) return -1;
+    if (sock->domain == 2) {
+        if (addrlen < 8) return -1;
+        uint16_t family = *(const uint16_t *)addr;
+        if (family != 2) return -1; // Must be AF_INET
 
-    c2s = fs_create_pipe_state();
-    s2c = fs_create_pipe_state();
-    if (!c2s || !s2c) {
-        if (c2s) kfree(c2s);
-        if (s2c) kfree(s2c);
-        return -1;
+        uint16_t sin_port = *(const uint16_t *)((const char *)addr + 2);
+        uint16_t port = ((sin_port & 0xFF) << 8) | ((sin_port >> 8) & 0xFF);
+        uint32_t ip_val = *(const uint32_t *)((const char *)addr + 4);
+
+        if (network_socket_connect(sock, ip_val, port) < 0) return -1;
+        sock->is_connected = 1;
+        return 0;
+    } else {
+        char path[108];
+        unix_listener_t *lst;
+        process_fd_pipe_t *c2s;
+        process_fd_pipe_t *s2c;
+        unix_pending_conn_t *pc;
+
+        if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
+
+        lst = unix_find_listener(path);
+        if (!lst || !unix_listener_is_listening(lst)) return -1;
+
+        c2s = fs_create_pipe_state();
+        s2c = fs_create_pipe_state();
+        if (!c2s || !s2c) {
+            if (c2s) kfree(c2s);
+            if (s2c) kfree(s2c);
+            return -1;
+        }
+
+        sock->rx_pipe = s2c;
+        sock->tx_pipe = c2s;
+        sock->is_connected = 1;
+
+        pc = unix_create_pending_conn(c2s, s2c, proc->pid, fd);
+        if (!pc) {
+            fs_socket_put_pipes(sock);
+            return -1;
+        }
+
+        if (unix_enqueue_pending(lst, pc) < 0) {
+            unix_free_pending(pc);
+            fs_socket_put_pipes(sock);
+            return -1;
+        }
+
+        return 0;
     }
-
-    sock->rx_pipe = s2c;
-    sock->tx_pipe = c2s;
-    sock->is_connected = 1;
-
-    pc = unix_create_pending_conn(c2s, s2c, proc->pid, fd);
-    if (!pc) {
-        fs_socket_put_pipes(sock);
-        return -1;
-    }
-
-    if (unix_enqueue_pending(lst, pc) < 0) {
-        unix_free_pending(pc);
-        fs_socket_put_pipes(sock);
-        return -1;
-    }
-
-    return 0;
 }
 
 static uint64_t fs_cmd_unix_socket_accept(const syscall_args_t *args) {
@@ -337,41 +434,87 @@ static uint64_t fs_cmd_unix_socket_accept(const syscall_args_t *args) {
     void *addr = (void *)args->arg3;
     uint64_t *addrlen = (uint64_t *)args->arg4;
     process_fd_socket_t *sock;
-    unix_listener_t *lst;
-    unix_pending_conn_t *pc;
     int newfd;
 
     if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
     sock = (process_fd_socket_t *)proc->fds[fd];
     if (!sock || !sock->is_listening) return -1;
 
-    lst = unix_find_listener_by_owner(proc->pid, fd);
-    if (!lst || !unix_listener_is_listening(lst)) return -1;
+    if (sock->domain == 2) {
+        if (sock->accept_queue_count == 0) {
+            return (uint64_t)-2;
+        }
 
-    pc = unix_dequeue_pending(lst);
-    if (!pc) return -2;
+        process_fd_socket_t *client = (process_fd_socket_t *)sock->accept_queue[0];
+        for (int i = 1; i < sock->accept_queue_count; i++) {
+            sock->accept_queue[i-1] = sock->accept_queue[i];
+        }
+        sock->accept_queue_count--;
+        sock->accept_queue[sock->accept_queue_count] = NULL;
 
-    newfd = fs_alloc_fd_slot(proc, 0);
-    if (newfd < 0) {
-        unix_enqueue_pending(lst, pc);
-        return -1;
+        newfd = fs_alloc_fd_slot(proc, 0);
+        if (newfd < 0) {
+            for (int i = sock->accept_queue_count; i > 0; i--) {
+                sock->accept_queue[i] = sock->accept_queue[i-1];
+            }
+            sock->accept_queue[0] = client;
+            sock->accept_queue_count++;
+            return -1;
+        }
+
+        proc->fds[newfd] = client;
+        proc->fd_kind[newfd] = PROC_FD_KIND_SOCKET;
+        proc->fd_flags[newfd] = O_RDWR;
+
+        if (addr && addrlen) {
+            if (*addrlen >= 8) {
+                uint8_t *a_bytes = (uint8_t *)addr;
+                *(uint16_t *)a_bytes = 2; // AF_INET
+                if (client->pcb) {
+                    uint16_t remote_port = 0;
+                    uint32_t remote_ip = 0;
+                    extern void network_socket_get_remote_info(void *sock, uint16_t *port, uint32_t *ip);
+                    network_socket_get_remote_info(client, &remote_port, &remote_ip);
+                    
+                    uint16_t sin_port = ((remote_port & 0xFF) << 8) | ((remote_port >> 8) & 0xFF);
+                    *(uint16_t *)(a_bytes + 2) = sin_port;
+                    *(uint32_t *)(a_bytes + 4) = remote_ip;
+                }
+            }
+        }
+        return newfd;
+    } else {
+        unix_listener_t *lst;
+        unix_pending_conn_t *pc;
+
+        lst = unix_find_listener_by_owner(proc->pid, fd);
+        if (!lst || !unix_listener_is_listening(lst)) return -1;
+
+        pc = unix_dequeue_pending(lst);
+        if (!pc) return -2;
+
+        newfd = fs_alloc_fd_slot(proc, 0);
+        if (newfd < 0) {
+            unix_enqueue_pending(lst, pc);
+            return -1;
+        }
+
+        process_fd_socket_t *child = process_socket_create();
+        if (!child) {
+            unix_enqueue_pending(lst, pc);
+            return -1;
+        }
+
+        child->rx_pipe = (process_fd_pipe_t *)pc->pipe1;
+        child->tx_pipe = (process_fd_pipe_t *)pc->pipe2;
+        child->is_connected = 1;
+        proc->fds[newfd] = child;
+        proc->fd_kind[newfd] = PROC_FD_KIND_SOCKET;
+        proc->fd_flags[newfd] = O_RDWR;
+
+        unix_free_pending(pc);
+        return newfd;
     }
-
-    process_fd_socket_t *child = process_socket_create();
-    if (!child) {
-        unix_enqueue_pending(lst, pc);
-        return -1;
-    }
-
-    child->rx_pipe = (process_fd_pipe_t *)pc->pipe1;
-    child->tx_pipe = (process_fd_pipe_t *)pc->pipe2;
-    child->is_connected = 1;
-    proc->fds[newfd] = child;
-    proc->fd_kind[newfd] = PROC_FD_KIND_SOCKET;
-    proc->fd_flags[newfd] = O_RDWR;
-
-    unix_free_pending(pc);
-    return newfd;
 }
 
 static uint64_t fs_cmd_unix_socket_close(const syscall_args_t *args) {
@@ -471,8 +614,16 @@ static uint64_t fs_cmd_read(const syscall_args_t *args) {
 
     if (proc->fd_kind[fd] == PROC_FD_KIND_SOCKET) {
         process_fd_socket_t *sock = (process_fd_socket_t *)proc->fds[fd];
-        process_fd_pipe_t *pipe = sock ? sock->rx_pipe : NULL;
-        if (!sock || !pipe || !buf) return -1;
+        if (!sock) return -1;
+        if (sock->domain == 2) {
+            int nonblock = (proc->fd_flags[fd] & O_NONBLOCK) ? 1 : 0;
+            int ret = network_socket_recv(sock, buf, len, nonblock);
+            if (ret == -2) return (uint64_t)-2;
+            return (uint64_t)ret;
+        }
+
+        process_fd_pipe_t *pipe = sock->rx_pipe;
+        if (!pipe || !buf) return -1;
         uint8_t *out = (uint8_t *)buf;
         uint32_t n = 0;
         while (n < len) {
@@ -538,8 +689,16 @@ static uint64_t fs_cmd_write(const syscall_args_t *args) {
 
     if (proc->fd_kind[fd] == PROC_FD_KIND_SOCKET) {
         process_fd_socket_t *sock = (process_fd_socket_t *)proc->fds[fd];
-        process_fd_pipe_t *pipe = sock ? sock->tx_pipe : NULL;
-        if (!sock || !pipe || !buf) return -1;
+        if (!sock) return -1;
+        if (sock->domain == 2) {
+            int nonblock = (proc->fd_flags[fd] & O_NONBLOCK) ? 1 : 0;
+            int ret = network_socket_send(sock, buf, len, nonblock);
+            if (ret == -2) return (uint64_t)-2;
+            return (uint64_t)ret;
+        }
+
+        process_fd_pipe_t *pipe = sock->tx_pipe;
+        if (!pipe || !buf) return -1;
         const uint8_t *in = (const uint8_t *)buf;
         uint32_t n = 0;
         while (n < len) {
@@ -940,13 +1099,28 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
             }
         } else if (proc->fd_kind[fd] == PROC_FD_KIND_SOCKET) {
             process_fd_socket_t *sock = (process_fd_socket_t *)proc->fds[fd];
-            if (sock && sock->rx_pipe && sock->tx_pipe) {
-                if (pt->qproc) pt->qproc(&sock->rx_pipe->read_queue, pt);
-                if (pt->qproc) pt->qproc(&sock->tx_pipe->write_queue, pt);
-                if (sock->rx_pipe->count > 0) mask |= POLLIN;
-                if (sock->tx_pipe->count < sizeof(sock->tx_pipe->data)) mask |= POLLOUT;
-                if (sock->rx_pipe->writers == 0) mask |= POLLHUP;
-                if (sock->tx_pipe->readers == 0) mask |= POLLERR;
+            if (sock) {
+                if (sock->domain == 2) {
+                    if (sock->is_listening) {
+                        if (pt->qproc) pt->qproc(&sock->accept_waitq, pt);
+                        if (sock->accept_queue_count > 0) mask |= POLLIN;
+                    } else {
+                        if (pt->qproc) pt->qproc(&sock->rx_waitq, pt);
+                        if (sock->recv_queue != NULL) mask |= POLLIN;
+                        if (sock->tcp_closed) mask |= (POLLIN | POLLHUP);
+                        if (sock->tcp_connect_error) mask |= POLLERR;
+                        if (sock->is_connected) mask |= POLLOUT;
+                    }
+                } else {
+                    if (sock->rx_pipe && sock->tx_pipe) {
+                        if (pt->qproc) pt->qproc(&sock->rx_pipe->read_queue, pt);
+                        if (pt->qproc) pt->qproc(&sock->tx_pipe->write_queue, pt);
+                        if (sock->rx_pipe->count > 0) mask |= POLLIN;
+                        if (sock->tx_pipe->count < sizeof(sock->tx_pipe->data)) mask |= POLLOUT;
+                        if (sock->rx_pipe->writers == 0) mask |= POLLHUP;
+                        if (sock->tx_pipe->readers == 0) mask |= POLLERR;
+                    }
+                }
             }
         } else if (proc->fd_kind[fd] == PROC_FD_KIND_TTY) {
             extern int tty_poll(int tty_id, struct poll_table *pt);

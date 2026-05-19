@@ -392,7 +392,7 @@ int SysdepImpl<Read>::operator()(int fd, void *buf, size_t count, ssize_t *bytes
                         (uint64_t)fd,
                         (uint64_t)(uintptr_t)buf,
                         (uint64_t)count);
-    if (ret < 0) return EIO;
+    if (ret < 0) return ret == -2 ? EAGAIN : EIO;
     *bytes_read = ret;
     return 0;
 }
@@ -400,6 +400,23 @@ int SysdepImpl<Read>::operator()(int fd, void *buf, size_t count, ssize_t *bytes
 // --- Write ---
 int SysdepImpl<Write>::operator()(int fd, const void *buf, size_t count, ssize_t *bytes_written) {
     int ret;
+    int fflags = 0;
+    int f_ret = (int)_sc4(BORED_SYS_FS, (uint64_t)FS_CMD_FCNTL, (uint64_t)fd, (uint64_t)3 /* F_GETFL */, 0);
+    if (f_ret >= 0) fflags = f_ret;
+
+    if (!(fflags & 0x0800 /* O_NONBLOCK */) && fd != 1 && fd != 2) {
+        struct bored_pollfd {
+            int fd;
+            short events;
+            short revents;
+        } pfd;
+        pfd.fd = fd;
+        pfd.events = 0x0004; // POLLOUT
+        pfd.revents = 0;
+        int rc;
+        while ((rc = (int)_sc4(BORED_SYS_FS, (uint64_t)FS_CMD_POLL, (uint64_t)&pfd, 1ULL, (uint64_t)-1)) == -2);
+    }
+
     if (fd == 1 || fd == 2) {
         ret = (int)_sc3(BORED_SYS_WRITE,
                         (uint64_t)fd,
@@ -412,7 +429,7 @@ int SysdepImpl<Write>::operator()(int fd, const void *buf, size_t count, ssize_t
                         (uint64_t)(uintptr_t)buf,
                         (uint64_t)count);
     }
-    if (ret < 0) return EIO;
+    if (ret < 0) return ret == -2 ? EAGAIN : EIO;
     *bytes_written = ret;
     return 0;
 }
@@ -865,7 +882,13 @@ int SysdepImpl<Bind>::operator()(int fd, const struct sockaddr *addr_ptr, sockle
                         (uint64_t)fd,
                         (uint64_t)(uintptr_t)addr_ptr,
                         (uint64_t)addr_length);
-    return ret < 0 ? EACCES : 0;
+    if (ret < 0) {
+        if (ret == -8) return EADDRINUSE;
+        if (ret == -9) return EINVAL;
+        if (ret == -15) return EINVAL;
+        return EACCES;
+    }
+    return 0;
 }
 
 int SysdepImpl<Listen>::operator()(int fd, int backlog) {
@@ -887,14 +910,39 @@ int SysdepImpl<Connect>::operator()(int fd, const struct sockaddr *addr_ptr, soc
 
 int SysdepImpl<Accept>::operator()(int fd, int *newfd, struct sockaddr *addr_ptr, socklen_t *addr_length, int flags) {
     (void)flags;
-    int ret = (int)_sc4(BORED_SYS_FS,
-                        (uint64_t)FS_CMD_UNIX_SOCKET_ACCEPT,
-                        (uint64_t)fd,
-                        (uint64_t)(uintptr_t)addr_ptr,
-                        (uint64_t)(uintptr_t)addr_length);
-    if (ret < 0) return ret == -2 ? EAGAIN : EACCES;
-    *newfd = ret;
-    return 0;
+    int fflags = 0;
+    int f_ret = (int)_sc4(BORED_SYS_FS, (uint64_t)FS_CMD_FCNTL, (uint64_t)fd, (uint64_t)3 /* F_GETFL */, 0);
+    if (f_ret >= 0) fflags = f_ret;
+
+    while (true) {
+        int ret = (int)_sc4(BORED_SYS_FS,
+                            (uint64_t)FS_CMD_UNIX_SOCKET_ACCEPT,
+                            (uint64_t)fd,
+                            (uint64_t)(uintptr_t)addr_ptr,
+                            (uint64_t)(uintptr_t)addr_length);
+        if (ret == -2) {
+            if (fflags & 0x0800 /* O_NONBLOCK */) {
+                return EAGAIN;
+            }
+            // Yield/block using poll!
+            struct bored_pollfd {
+                int fd;
+                short events;
+                short revents;
+            } pfd;
+            pfd.fd = fd;
+            pfd.events = 0x0001; // POLLIN
+            pfd.revents = 0;
+            
+            int rc;
+            while ((rc = (int)_sc4(BORED_SYS_FS, (uint64_t)FS_CMD_POLL, (uint64_t)&pfd, 1ULL, (uint64_t)-1)) == -2);
+            if (rc < 0) return EACCES;
+            continue;
+        }
+        if (ret < 0) return EACCES;
+        *newfd = ret;
+        return 0;
+    }
 }
 
 #ifndef TIOCGWINSZ
@@ -1008,6 +1056,27 @@ int SysdepImpl<Pselect>::operator()(int num_fds, fd_set *read_set, fd_set *write
     }
 
     *num_events = ready_events;
+    return 0;
+}
+
+int SysdepImpl<Sendto>::operator()(int fd, const void *buffer, size_t size, int flags, const struct sockaddr *sock_addr, socklen_t addr_length, ssize_t *length) {
+    (void)flags; (void)sock_addr; (void)addr_length;
+    return SysdepImpl<Write>::operator()(fd, buffer, size, length);
+}
+
+int SysdepImpl<Recvfrom>::operator()(int fd, void *buffer, size_t size, int flags, struct sockaddr *sock_addr, socklen_t *addr_length, ssize_t *length) {
+    (void)flags; (void)sock_addr; (void)addr_length;
+    return SysdepImpl<Read>::operator()(fd, buffer, size, length);
+}
+
+int SysdepImpl<GetSockopt>::operator()(int fd, int layer, int number, void *__restrict buffer, socklen_t *__restrict size) {
+    (void)fd; (void)layer; (void)number; (void)buffer;
+    if (size) *size = 0;
+    return 0;
+}
+
+int SysdepImpl<SetSockopt>::operator()(int fd, int layer, int number, const void *buffer, socklen_t size) {
+    (void)fd; (void)layer; (void)number; (void)buffer; (void)size;
     return 0;
 }
 

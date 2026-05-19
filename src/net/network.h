@@ -97,7 +97,12 @@ int network_tcp_recv_nb(void *buf, size_t max_len);
 int network_tcp_close(void);
 int network_dns_lookup(const char *name, ipv4_address_t *out_ip);
 int network_set_dns_server(const ipv4_address_t *ip);
-void network_cleanup(void);
-void network_force_unlock(void);
+int network_socket_bind(void *sock, uint32_t ip_val, uint16_t port);
+int network_socket_listen(void *sock);
+int network_socket_connect(void *sock, uint32_t ip_val, uint16_t port);
+int network_socket_recv(void *sock, void *buf, size_t max_len, int nonblock);
+int network_socket_send(void *sock, const void *data, size_t len, int nonblock);
+void network_socket_close(void *sock);
+void network_socket_get_remote_info(void *sock, uint16_t *port, uint32_t *ip);
 
 #endif

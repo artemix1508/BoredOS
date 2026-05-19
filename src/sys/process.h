@@ -41,12 +41,26 @@ typedef struct {
 
 typedef struct {
     int refs;
+    uint8_t domain; // 1 = AF_UNIX, 2 = AF_INET
     uint8_t is_bound;
     uint8_t is_listening;
     uint8_t is_connected;
     char path[108];
     process_fd_pipe_t *rx_pipe;
     process_fd_pipe_t *tx_pipe;
+
+    // TCP/IP socket fields
+    void *pcb;              // Pointer to struct tcp_pcb
+    void *recv_queue;       // Pointer to struct pbuf
+    uint8_t tcp_closed;
+    uint8_t tcp_connect_error;
+    uint8_t tcp_connect_done;
+
+    // Backlog of accepted client sockets
+    void *accept_queue[16]; // Backlog of process_fd_socket_t*
+    int accept_queue_count;
+    wait_queue_head_t accept_waitq;
+    wait_queue_head_t rx_waitq;
 } process_fd_socket_t;
 
 process_fd_socket_t *process_socket_create(void);

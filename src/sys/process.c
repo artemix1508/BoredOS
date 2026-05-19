@@ -153,10 +153,15 @@ void process_socket_release(process_fd_socket_t *sock) {
     sock->refs--;
     if (sock->refs > 0) return;
 
-    if (sock->is_bound && sock->path[0]) {
-        unix_unregister_listener(sock->path);
+    if (sock->domain == 2) {
+        extern void network_socket_close(process_fd_socket_t *sock);
+        network_socket_close(sock);
+    } else {
+        if (sock->is_bound && sock->path[0]) {
+            unix_unregister_listener(sock->path);
+        }
+        process_socket_drop_pipes(sock);
     }
-    process_socket_drop_pipes(sock);
     kfree(sock);
 }
 
