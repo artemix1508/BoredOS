@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/socklen_t.h
+../../../../abis/linux/socklen_t.h

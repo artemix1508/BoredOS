@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/poll.h
+../../../../abis/linux/poll.h

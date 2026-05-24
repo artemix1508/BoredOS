@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/utsname.h
+../../../../abis/linux/utsname.h

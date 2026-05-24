@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/ino_t.h
+../../../../abis/linux/ino_t.h

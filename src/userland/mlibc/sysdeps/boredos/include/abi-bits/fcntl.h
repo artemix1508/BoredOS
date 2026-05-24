@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/fcntl.h
+../../../../abis/linux/fcntl.h

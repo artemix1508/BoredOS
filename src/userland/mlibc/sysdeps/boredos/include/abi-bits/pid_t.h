@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/pid_t.h
+../../../../abis/linux/pid_t.h

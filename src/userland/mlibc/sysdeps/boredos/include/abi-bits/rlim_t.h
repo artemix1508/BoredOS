@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/rlim_t.h
+../../../../abis/linux/rlim_t.h

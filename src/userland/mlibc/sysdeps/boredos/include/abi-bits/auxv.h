@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/auxv.h
+../../../../abis/linux/auxv.h

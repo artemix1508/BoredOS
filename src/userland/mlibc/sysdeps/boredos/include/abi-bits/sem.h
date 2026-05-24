@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/sem.h
+../../../../abis/linux/sem.h

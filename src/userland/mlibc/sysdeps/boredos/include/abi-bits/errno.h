@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/errno.h
+../../../../abis/linux/errno.h

@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/termios.h
+../../../../abis/linux/termios.h

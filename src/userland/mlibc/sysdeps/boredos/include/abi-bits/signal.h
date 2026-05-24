@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/signal.h
+../../../../abis/linux/signal.h

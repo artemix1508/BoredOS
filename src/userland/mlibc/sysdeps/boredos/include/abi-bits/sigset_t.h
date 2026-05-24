@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/sigset_t.h
+../../../../abis/linux/sigset_t.h

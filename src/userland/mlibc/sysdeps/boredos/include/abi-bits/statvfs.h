@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/statvfs.h
+../../../../abis/linux/statvfs.h

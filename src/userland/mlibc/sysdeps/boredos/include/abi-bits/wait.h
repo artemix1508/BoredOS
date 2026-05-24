@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/wait.h
+../../../../abis/linux/wait.h

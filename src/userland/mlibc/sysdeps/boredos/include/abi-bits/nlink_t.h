@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/nlink_t.h
+../../../../abis/linux/nlink_t.h

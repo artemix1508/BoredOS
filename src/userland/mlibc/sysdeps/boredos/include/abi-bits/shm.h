@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/shm.h
+../../../../abis/linux/shm.h

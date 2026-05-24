@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/fd_set.h
+../../../../abis/linux/fd_set.h

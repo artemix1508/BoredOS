@@ -21,6 +21,8 @@ src/userland/mlibc/headers-build/
 .DS_Store
 *.o
 *.a
+*.idx
+.cache/
 
 # Others
 .gitignore

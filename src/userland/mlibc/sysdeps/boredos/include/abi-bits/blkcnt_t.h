@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/blkcnt_t.h
+../../../../abis/linux/blkcnt_t.h

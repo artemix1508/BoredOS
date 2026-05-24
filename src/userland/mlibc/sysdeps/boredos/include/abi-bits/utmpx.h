@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/utmpx.h
+../../../../abis/linux/utmpx.h

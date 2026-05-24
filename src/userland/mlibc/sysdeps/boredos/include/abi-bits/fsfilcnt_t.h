@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/fsfilcnt_t.h
+../../../../abis/linux/fsfilcnt_t.h

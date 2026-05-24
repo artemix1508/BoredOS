@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/socket.h
+../../../../abis/linux/socket.h

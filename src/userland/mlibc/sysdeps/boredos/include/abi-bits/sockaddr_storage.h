@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/sockaddr_storage.h
+../../../../abis/linux/sockaddr_storage.h

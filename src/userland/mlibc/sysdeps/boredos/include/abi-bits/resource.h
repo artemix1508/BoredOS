@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/resource.h
+../../../../abis/linux/resource.h

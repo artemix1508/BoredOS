@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/msg.h
+../../../../abis/linux/msg.h

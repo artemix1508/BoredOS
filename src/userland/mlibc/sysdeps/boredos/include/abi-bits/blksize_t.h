@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/blksize_t.h
+../../../../abis/linux/blksize_t.h

@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/ipc.h
+../../../../abis/linux/ipc.h

@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/sig-limits.h
+../../../../abis/linux/sig-limits.h

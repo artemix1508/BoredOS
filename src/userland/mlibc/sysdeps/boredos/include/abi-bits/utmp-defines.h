@@ -1,1 +1,1 @@
-/Users/chris/BoredOS/src/userland/mlibc/abis/linux/utmp-defines.h
+../../../../abis/linux/utmp-defines.h
