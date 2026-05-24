@@ -808,7 +808,14 @@ uint64_t process_schedule(uint64_t current_rsp) {
     
     while (next_proc != start) {
         if (next_proc->cpu_affinity == my_cpu && next_proc->pid != 0xFFFFFFFF && !next_proc->kill_pending) {
-            if (next_proc->pid == 0 || (next_proc->state == PROC_STATE_RUNNING && (next_proc->sleep_until == 0 || next_proc->sleep_until <= now))) {
+            if (next_proc->pid == 0 || 
+                (next_proc->state == PROC_STATE_RUNNING && (next_proc->sleep_until == 0 || next_proc->sleep_until <= now)) ||
+                (next_proc->state == PROC_STATE_BLOCKED && next_proc->sleep_until > 0 && next_proc->sleep_until <= now)) {
+                
+                if (next_proc->state == PROC_STATE_BLOCKED) {
+                    next_proc->state = PROC_STATE_RUNNING;
+                    next_proc->sleep_until = 0;
+                }
                 break;
             }
         }
@@ -928,7 +935,7 @@ static void process_cleanup_inner(process_t *proc) {
 }
 
 void process_terminate(process_t *to_delete) {
-    process_terminate_with_status(to_delete, 0);
+    process_terminate_with_status(to_delete, 128 + 9);
 }
 
 void process_terminate_with_status(process_t *to_delete, int status) {
@@ -1020,7 +1027,7 @@ void process_terminate_with_status(process_t *to_delete, int status) {
     spinlock_release_irqrestore(&runqueue_lock, rflags);
 }
 
-uint64_t process_terminate_current(void) {
+uint64_t process_terminate_current_with_status(int status) {
     uint64_t rflags = spinlock_acquire_irqsave(&runqueue_lock);
 
     uint32_t my_cpu = smp_this_cpu_id();
@@ -1033,7 +1040,7 @@ uint64_t process_terminate_current(void) {
     
     process_cleanup_inner(cur);
     cur->exited = true;
-    cur->exit_status = 0;
+    cur->exit_status = status;
 
     // 2. Find previous process in circular list
     process_t *prev = cur;
@@ -1096,6 +1103,10 @@ uint64_t process_terminate_current(void) {
     uint64_t next_rsp = current_process[my_cpu]->rsp;
     spinlock_release_irqrestore(&runqueue_lock, rflags);
     return next_rsp;
+}
+
+uint64_t process_terminate_current(void) {
+    return process_terminate_current_with_status(0);
 }
 
 int process_reap(uint32_t caller_pid, uint32_t pid, int *status_out) {

@@ -604,6 +604,8 @@ int fd_file::parse_modestring(const char *mode) {
 			mode++; // This is already handled above.
 		} else if (*mode == 'b') {
 			mode++; // mlibc assumes that there is no distinction between text and binary.
+		} else if (*mode == 't') {
+			mode++; // accept text-mode flag for compatibility (no-op)
 		} else if (*mode == 'e') {
 			flags |= O_CLOEXEC;
 			mode++;

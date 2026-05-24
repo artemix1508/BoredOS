@@ -30,6 +30,8 @@ int unix_listener_is_listening(unix_listener_t *lst);
 int unix_enqueue_pending(unix_listener_t *lst, unix_pending_conn_t *pc);
 // Dequeue a pending connection; returns NULL if none
 unix_pending_conn_t *unix_dequeue_pending(unix_listener_t *lst);
+wait_queue_head_t *unix_listener_get_accept_waitq(unix_listener_t *lst);
+int unix_listener_has_pending(unix_listener_t *lst);
 
 // Create a pending connection object (holds pipe pointers)
 unix_pending_conn_t *unix_create_pending_conn(void *pipe1, void *pipe2, int client_pid, int client_fd);

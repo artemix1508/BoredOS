@@ -191,6 +191,26 @@ void SysdepImpl<Exit>::operator()(int status) {
     __builtin_unreachable();
 }
 
+// --- Process Identity & IDs ---
+pid_t SysdepImpl<GetPid>::operator()() {
+    return 1; // Dummy PID
+}
+pid_t SysdepImpl<GetPpid>::operator()() {
+    return 1; // Dummy PPID
+}
+uid_t SysdepImpl<GetUid>::operator()() {
+    return 0; // root
+}
+uid_t SysdepImpl<GetEuid>::operator()() {
+    return 0; // root
+}
+gid_t SysdepImpl<GetGid>::operator()() {
+    return 0; // root
+}
+gid_t SysdepImpl<GetEgid>::operator()() {
+    return 0; // root
+}
+
 // --- Futex ---
 int SysdepImpl<FutexWait>::operator()(int *pointer, int expected, const struct timespec *) {
     int rc = (int)_sc3(BORED_SYS_FUTEX,
@@ -431,6 +451,51 @@ int SysdepImpl<Write>::operator()(int fd, const void *buf, size_t count, ssize_t
     }
     if (ret < 0) return ret == -2 ? EAGAIN : EIO;
     *bytes_written = ret;
+    return 0;
+}
+
+// --- Writev ---
+int SysdepImpl<Writev>::operator()(int fd, const struct iovec *iovs, int iovc, ssize_t *bytes_written) {
+    size_t total_bytes = 0;
+    for (int i = 0; i < iovc; i++) {
+        total_bytes += iovs[i].iov_len;
+    }
+
+    mlibc::infoLogger() << "SysdepImpl<Writev> called on fd " << fd << " with iovc: " << iovc 
+                        << " total_bytes: " << total_bytes << frg::endlog;
+
+    if (total_bytes == 0) {
+        *bytes_written = 0;
+        return 0;
+    }
+
+    char *buf = nullptr;
+    char stack_buf[4096];
+    if (total_bytes <= sizeof(stack_buf)) {
+        buf = stack_buf;
+    } else {
+        buf = (char *)__builtin_malloc(total_bytes);
+        if (!buf) return ENOMEM;
+    }
+
+    size_t offset = 0;
+    for (int i = 0; i < iovc; i++) {
+        if (iovs[i].iov_len > 0) {
+            __builtin_memcpy(buf + offset, iovs[i].iov_base, iovs[i].iov_len);
+            offset += iovs[i].iov_len;
+        }
+    }
+
+    ssize_t written = 0;
+    int ret = SysdepImpl<Write>::operator()(fd, buf, total_bytes, &written);
+
+    if (buf != stack_buf) {
+        __builtin_free(buf);
+    }
+
+    if (ret != 0) return ret;
+
+    *bytes_written = written;
     return 0;
 }
 
@@ -678,7 +743,11 @@ int SysdepImpl<Mkdir>::operator()(const char *path, mode_t mode) {
     int ret = (int)_sc2(BORED_SYS_FS,
                         (uint64_t)FS_CMD_MKDIR,
                         (uint64_t)(uintptr_t)path);
-    return ret < 0 ? EACCES : 0;
+    if (ret < 0) {
+        if (ret == -17) return EEXIST;
+        return EACCES;
+    }
+    return 0;
 }
 
 int SysdepImpl<Unlinkat>::operator()(int dirfd, const char *path, int flags) {
@@ -996,9 +1065,14 @@ int SysdepImpl<Pselect>::operator()(int num_fds, fd_set *read_set, fd_set *write
         if (r || w || e) count++;
     }
 
+    struct pollfd pfds_stack[128];
     struct pollfd *pfds = nullptr;
     if (count > 0) {
-        pfds = (struct pollfd *)__builtin_alloca(sizeof(struct pollfd) * count);
+        if (count <= 128) {
+            pfds = pfds_stack;
+        } else {
+            pfds = (struct pollfd *)__builtin_malloc(sizeof(struct pollfd) * count);
+        }
         int idx = 0;
         for (int fd = 0; fd < num_fds; fd++) {
             bool r = read_set && FD_ISSET(fd, read_set);
@@ -1051,11 +1125,26 @@ int SysdepImpl<Pselect>::operator()(int num_fds, fd_set *read_set, fd_set *write
                 }
             }
         }
-    } else if (rc < 0) {
-        return EIO;
     }
 
-    *num_events = ready_events;
+    int error = 0;
+    if (rc < 0) {
+        error = EIO;
+    } else {
+        *num_events = ready_events;
+    }
+
+    if (pfds && pfds != pfds_stack) {
+        __builtin_free(pfds);
+    }
+    return error;
+}
+
+int SysdepImpl<Poll>::operator()(struct pollfd *fds, nfds_t count, int timeout, int *num_events) {
+    int rc;
+    while ((rc = (int)_sc4(BORED_SYS_FS, (uint64_t)FS_CMD_POLL, (uint64_t)fds, (uint64_t)count, (uint64_t)timeout)) == -2);
+    if (rc < 0) return EINVAL;
+    if (num_events) *num_events = rc;
     return 0;
 }
 
@@ -1077,6 +1166,58 @@ int SysdepImpl<GetSockopt>::operator()(int fd, int layer, int number, void *__re
 
 int SysdepImpl<SetSockopt>::operator()(int fd, int layer, int number, const void *buffer, socklen_t size) {
     (void)fd; (void)layer; (void)number; (void)buffer; (void)size;
+    return 0;
+}
+
+// --- newly stubbed sysdeps ---
+int SysdepImpl<Uname>::operator()(struct utsname *buf) {
+    __builtin_strcpy(buf->sysname, "BoredOS");
+    __builtin_strcpy(buf->nodename, "boredos");
+    __builtin_strcpy(buf->release, "1.0");
+    __builtin_strcpy(buf->version, "1.0");
+    __builtin_strcpy(buf->machine, "x86_64");
+    return 0;
+}
+
+int SysdepImpl<SetPgid>::operator()(pid_t pid, pid_t pgid) {
+    (void)pid; (void)pgid;
+    return 0;
+}
+
+int SysdepImpl<GetPgid>::operator()(pid_t pid, pid_t *pgid) {
+    (void)pid;
+    if (pgid) *pgid = 0; // dummy process group 0
+    return 0;
+}
+
+int SysdepImpl<Umask>::operator()(mode_t mode, mode_t *old) {
+    (void)mode;
+    if (old) *old = 022;
+    return 0;
+}
+
+int SysdepImpl<Chmod>::operator()(const char *pathname, mode_t mode) {
+    (void)pathname; (void)mode;
+    return 0;
+}
+
+int SysdepImpl<Sockname>::operator()(int fd, struct sockaddr *addr_ptr, socklen_t max_addr_length, socklen_t *actual_length) {
+    (void)fd;
+    if (max_addr_length >= 16) { // sizeof(struct sockaddr_in)
+        __builtin_memset(addr_ptr, 0, 16);
+        addr_ptr->sa_family = 2; // AF_INET
+        if (actual_length) *actual_length = 16;
+    } else if (actual_length) {
+        *actual_length = 0;
+    }
+    return 0;
+}
+
+int SysdepImpl<GetHostname>::operator()(char *buffer, size_t bufsize) {
+    if (bufsize < 8) {
+        return ENAMETOOLONG;
+    }
+    __builtin_strcpy(buffer, "boredos");
     return 0;
 }
 

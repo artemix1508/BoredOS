@@ -683,6 +683,9 @@ int vfs_ioctl(vfs_file_t *file, uint64_t request, void *arg) {
                 finfo->accel = 0;
                 
                 return 0;
+            } else if (request == FBIOPUT_VSCREENINFO) {
+                // Ignore changes as our FB is fixed by the bootloader, but report success
+                return 0;
             }
             return -1;
         }

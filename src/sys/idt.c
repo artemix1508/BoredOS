@@ -79,7 +79,10 @@ uint64_t exception_handler_c(registers_t *regs) {
         cmd_write("*** USER EXCEPTION ***\nVector: "); cmd_write_hex(vector);
         cmd_write("\nRIP: "); cmd_write_hex(regs->rip);
         cmd_write("\nTerminating process.\n");
-        return process_terminate_current();
+        int sig = 11; // Default to SIGSEGV
+        if (vector == 0) sig = 8; // SIGFPE
+        else if (vector == 6) sig = 4; // SIGILL
+        return process_terminate_current_with_status(128 + sig);
     }
 
     // Kernel mode exception

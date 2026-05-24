@@ -164,6 +164,7 @@ void process_set_current_for_cpu(uint32_t cpu_id, process_t* p);
 process_t* process_get_current_for_cpu(uint32_t cpu_id);
 uint64_t process_schedule(uint64_t current_rsp);
 uint64_t process_terminate_current(void);
+uint64_t process_terminate_current_with_status(int status);
 // Records an allocated ELF segment pointer so it can be freed when the process exits.
 void process_add_elf_segment(struct process *proc, void *ptr);
 

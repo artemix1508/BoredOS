@@ -119,6 +119,18 @@ unix_pending_conn_t *unix_dequeue_pending(unix_listener_t *lst) {
     return pc;
 }
 
+wait_queue_head_t *unix_listener_get_accept_waitq(unix_listener_t *lst) {
+    return lst ? &lst->accept_waitq : NULL;
+}
+
+int unix_listener_has_pending(unix_listener_t *lst) {
+    if (!lst) return 0;
+    uint64_t flags = spinlock_acquire_irqsave(&lst->lock);
+    int has = (lst->pending_head != NULL);
+    spinlock_release_irqrestore(&lst->lock, flags);
+    return has;
+}
+
 unix_pending_conn_t *unix_create_pending_conn(void *pipe1, void *pipe2, int client_pid, int client_fd) {
     unix_pending_conn_t *pc = (unix_pending_conn_t *)kmalloc(sizeof(*pc));
     if (!pc) return NULL;

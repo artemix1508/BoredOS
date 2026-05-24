@@ -27,6 +27,7 @@ struct BoredOSSysdepTags :
     Open,
     Read,
     Write,
+    Writev,
     Seek,
     Close,
     Isatty,
@@ -48,6 +49,7 @@ struct BoredOSSysdepTags :
     Tcgetwinsize,
     Tcsetwinsize,
     Pselect,
+    Poll,
     // --- Sockets ---
     Socket,
     Bind,
@@ -58,6 +60,7 @@ struct BoredOSSysdepTags :
     Recvfrom,
     GetSockopt,
     SetSockopt,
+    Sockname,
     // --- Process ---
     Fork,
     Execve,
@@ -65,9 +68,22 @@ struct BoredOSSysdepTags :
     Kill,
     Sigaction,
     Sigprocmask,
+    GetPid,
+    GetPpid,
+    GetUid,
+    GetEuid,
+    GetGid,
+    GetEgid,
+    GetPgid,
+    SetPgid,
+    Uname,
+    Umask,
+    Chmod,
     // --- Directory ---
     OpenDir,
-    ReadEntries
+    ReadEntries,
+    // --- Hostname ---
+    GetHostname
 {};
 
 template<typename Tag>

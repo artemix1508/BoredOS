@@ -194,22 +194,37 @@ static void fs_pipe_drop_writer(process_fd_pipe_t *pipe) {
 }
 
 static int fs_copy_unix_path(const void *addr, uint64_t addrlen, char *path_out, size_t path_out_size) {
+    extern void serial_write(const char *str);
+    extern void serial_write_num(uint64_t n);
+
     const uint8_t *raw = (const uint8_t *)addr;
     size_t i;
 
     if (!addr || !path_out || path_out_size == 0 || addrlen < sizeof(uint16_t)) {
+        serial_write("[fs_copy_unix_path] invalid arguments or short addrlen\n");
         return -1;
     }
-    if (*(const uint16_t *)addr != 1) {
+    uint16_t family = *(const uint16_t *)addr;
+    if (family != 1) {
+        serial_write("[fs_copy_unix_path] family != 1 (AF_UNIX), family=");
+        serial_write_num(family);
+        serial_write("\n");
         return -1;
     }
 
     raw += sizeof(uint16_t);
-    for (i = 0; i + 1 < path_out_size && (i + sizeof(uint16_t)) < addrlen; i++) {
-        path_out[i] = (char)raw[i];
+    size_t offset = 0;
+    if (addrlen > sizeof(uint16_t) && raw[0] == '\0') {
+        offset = 1;
+    }
+
+    size_t limit = (offset == 1) ? 108 : (addrlen - sizeof(uint16_t));
+
+    for (i = 0; i + 1 < path_out_size && i < limit; i++) {
+        path_out[i] = (char)raw[i + offset];
         if (path_out[i] == '\0') break;
     }
-    path_out[path_out_size - 1] = '\0';
+    path_out[i] = '\0';
     return path_out[0] ? 0 : -1;
 }
 
@@ -333,6 +348,9 @@ static uint64_t fs_cmd_unix_socket_bind(const syscall_args_t *args) {
         char path[108];
         if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
         if (unix_register_listener(path, proc->pid, fd) < 0) return -1;
+        serial_write("[bind-unix] path=");
+        serial_write(path);
+        serial_write(" registered listener\n");
 
         sock->is_bound = 1;
         sock->is_listening = 0;
@@ -356,7 +374,7 @@ static uint64_t fs_cmd_unix_socket_listen(const syscall_args_t *args) {
         sock->is_listening = 1;
         return 0;
     } else {
-        unix_listener_t *lst = unix_find_listener_by_owner(proc->pid, fd);
+        unix_listener_t *lst = unix_find_listener(sock->path);
         if (!lst) return -1;
 
         unix_listener_set_listening(lst, 1);
@@ -366,27 +384,60 @@ static uint64_t fs_cmd_unix_socket_listen(const syscall_args_t *args) {
 }
 
 static uint64_t fs_cmd_unix_socket_connect(const syscall_args_t *args) {
+    extern void serial_write(const char *str);
+    extern void serial_write_num(uint64_t n);
+
     process_t *proc = process_get_current();
     int fd = (int)args->arg2;
     const void *addr = (const void *)args->arg3;
     uint64_t addrlen = args->arg4;
     process_fd_socket_t *sock;
 
-    if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
+    serial_write("[syscall] connect called: fd="); serial_write_num(fd);
+    serial_write(" addrlen="); serial_write_num(addrlen);
+    serial_write("\n");
+
+    if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) {
+        serial_write("[syscall] connect: invalid fd or socket check failed\n");
+        return -1;
+    }
     sock = (process_fd_socket_t *)proc->fds[fd];
-    if (!sock || sock->is_connected) return -1;
+    if (!sock) {
+        serial_write("[syscall] connect: sock is NULL\n");
+        return -1;
+    }
+    if (sock->is_connected) {
+        serial_write("[syscall] connect: socket is already connected\n");
+        return -1;
+    }
+
+    serial_write("[syscall] connect: domain="); serial_write_num(sock->domain);
+    serial_write("\n");
 
     if (sock->domain == 2) {
-        if (addrlen < 8) return -1;
+        if (addrlen < 8) {
+            serial_write("[syscall] connect: inet addrlen < 8\n");
+            return -1;
+        }
         uint16_t family = *(const uint16_t *)addr;
-        if (family != 2) return -1; // Must be AF_INET
+        if (family != 2) {
+            serial_write("[syscall] connect: inet family != 2\n");
+            return -1; // Must be AF_INET
+        }
 
         uint16_t sin_port = *(const uint16_t *)((const char *)addr + 2);
         uint16_t port = ((sin_port & 0xFF) << 8) | ((sin_port >> 8) & 0xFF);
         uint32_t ip_val = *(const uint32_t *)((const char *)addr + 4);
 
-        if (network_socket_connect(sock, ip_val, port) < 0) return -1;
+        serial_write("[syscall] connect: inet connecting to port="); serial_write_num(port);
+        serial_write("\n");
+
+        if (network_socket_connect(sock, ip_val, port) < 0) {
+            serial_write("[syscall] connect: network_socket_connect failed\n");
+            return -1;
+        }
         sock->is_connected = 1;
+        serial_write("[syscall] connect: network_socket_connect succeeded\n");
         return 0;
     } else {
         char path[108];
@@ -395,14 +446,34 @@ static uint64_t fs_cmd_unix_socket_connect(const syscall_args_t *args) {
         process_fd_pipe_t *s2c;
         unix_pending_conn_t *pc;
 
-        if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) return -1;
+        if (fs_copy_unix_path(addr, addrlen, path, sizeof(path)) < 0) {
+            serial_write("[syscall] connect: fs_copy_unix_path failed\n");
+            return -1;
+        }
+
+        serial_write("[syscall] connect: unix connecting to path='");
+        serial_write(path);
+        serial_write("'\n");
 
         lst = unix_find_listener(path);
-        if (!lst || !unix_listener_is_listening(lst)) return -1;
+        serial_write("[connect-unix] path=");
+        serial_write(path);
+        serial_write(" lst=");
+        serial_write_num((uint64_t)lst);
+        serial_write("\n");
+        if (!lst) {
+            serial_write("[syscall] connect: unix listener not found for path\n");
+            return -1;
+        }
+        if (!unix_listener_is_listening(lst)) {
+            serial_write("[syscall] connect: unix listener is not listening\n");
+            return -1;
+        }
 
         c2s = fs_create_pipe_state();
         s2c = fs_create_pipe_state();
         if (!c2s || !s2c) {
+            serial_write("[syscall] connect: failed to create pipe states\n");
             if (c2s) kfree(c2s);
             if (s2c) kfree(s2c);
             return -1;
@@ -414,16 +485,19 @@ static uint64_t fs_cmd_unix_socket_connect(const syscall_args_t *args) {
 
         pc = unix_create_pending_conn(c2s, s2c, proc->pid, fd);
         if (!pc) {
+            serial_write("[syscall] connect: failed to create pending connection\n");
             fs_socket_put_pipes(sock);
             return -1;
         }
 
         if (unix_enqueue_pending(lst, pc) < 0) {
+            serial_write("[syscall] connect: failed to enqueue pending connection\n");
             unix_free_pending(pc);
             fs_socket_put_pipes(sock);
             return -1;
         }
 
+        serial_write("[syscall] connect: unix connection enqueued successfully\n");
         return 0;
     }
 }
@@ -436,9 +510,18 @@ static uint64_t fs_cmd_unix_socket_accept(const syscall_args_t *args) {
     process_fd_socket_t *sock;
     int newfd;
 
+    extern void serial_write(const char *str);
+    extern void serial_write_num(uint64_t n);
+
     if (!proc || fd < 0 || fd >= MAX_PROCESS_FDS || !proc->fds[fd] || proc->fd_kind[fd] != PROC_FD_KIND_SOCKET) return -1;
     sock = (process_fd_socket_t *)proc->fds[fd];
     if (!sock || !sock->is_listening) return -1;
+
+    serial_write("[syscall] accept called on fd=");
+    serial_write_num(fd);
+    serial_write(" domain=");
+    serial_write_num(sock->domain);
+    serial_write("\n");
 
     if (sock->domain == 2) {
         if (sock->accept_queue_count == 0) {
@@ -487,7 +570,7 @@ static uint64_t fs_cmd_unix_socket_accept(const syscall_args_t *args) {
         unix_listener_t *lst;
         unix_pending_conn_t *pc;
 
-        lst = unix_find_listener_by_owner(proc->pid, fd);
+        lst = unix_find_listener(sock->path);
         if (!lst || !unix_listener_is_listening(lst)) return -1;
 
         pc = unix_dequeue_pending(lst);
@@ -505,9 +588,14 @@ static uint64_t fs_cmd_unix_socket_accept(const syscall_args_t *args) {
             return -1;
         }
 
+        serial_write("[syscall] accept: UNIX connection dequeued, allocating child fd=");
+        serial_write_num(newfd);
+        serial_write("\n");
+
         child->rx_pipe = (process_fd_pipe_t *)pc->pipe1;
         child->tx_pipe = (process_fd_pipe_t *)pc->pipe2;
         child->is_connected = 1;
+        child->domain = 1;
         proc->fds[newfd] = child;
         proc->fd_kind[newfd] = PROC_FD_KIND_SOCKET;
         proc->fd_flags[newfd] = O_RDWR;
@@ -597,7 +685,7 @@ static uint64_t fs_cmd_read(const syscall_args_t *args) {
             if (pipe->count == 0) {
                 if (pipe->writers == 0) break;
                 if (proc->fd_flags[fd] & O_NONBLOCK) {
-                    if (n == 0) return (uint64_t)-1;
+                    if (n == 0) return (uint64_t)-2;
                     break;
                 }
                 break;
@@ -626,14 +714,17 @@ static uint64_t fs_cmd_read(const syscall_args_t *args) {
         if (!pipe || !buf) return -1;
         uint8_t *out = (uint8_t *)buf;
         uint32_t n = 0;
+        asm volatile("sti");
         while (n < len) {
             if (pipe->count == 0) {
                 if (pipe->writers == 0) break;
                 if (proc->fd_flags[fd] & O_NONBLOCK) {
-                    if (n == 0) return (uint64_t)-1;
+                    if (n == 0) return (uint64_t)-2;
                     break;
                 }
-                break;
+                if (n > 0) break;
+                k_delay(10);
+                continue;
             }
             out[n++] = pipe->data[pipe->read_pos];
             pipe->read_pos = (pipe->read_pos + 1) % sizeof(pipe->data);
@@ -672,7 +763,7 @@ static uint64_t fs_cmd_write(const syscall_args_t *args) {
         while (n < len) {
             if (pipe->count == sizeof(pipe->data)) {
                 if (proc->fd_flags[fd] & O_NONBLOCK) {
-                    if (n == 0) return (uint64_t)-1;
+                    if (n == 0) return (uint64_t)-2;
                     break;
                 }
                 break;
@@ -701,13 +792,17 @@ static uint64_t fs_cmd_write(const syscall_args_t *args) {
         if (!pipe || !buf) return -1;
         const uint8_t *in = (const uint8_t *)buf;
         uint32_t n = 0;
+        asm volatile("sti");
         while (n < len) {
             if (pipe->count == sizeof(pipe->data)) {
+                if (pipe->readers <= 0) break;
                 if (proc->fd_flags[fd] & O_NONBLOCK) {
-                    if (n == 0) return (uint64_t)-1;
+                    if (n == 0) return (uint64_t)-2;
                     break;
                 }
-                break;
+                if (n > 0) break;
+                k_delay(10);
+                continue;
             }
             pipe->data[pipe->write_pos] = in[n++];
             pipe->write_pos = (pipe->write_pos + 1) % sizeof(pipe->data);
@@ -973,6 +1068,9 @@ static uint64_t fs_cmd_get_info(const syscall_args_t *args) {
 static uint64_t fs_cmd_mkdir(const syscall_args_t *args) {
     const char *path = (const char *)args->arg2;
     if (!path) return -1;
+    if (vfs_exists(path)) {
+        return (uint64_t)-17;
+    }
     return vfs_mkdir(path) ? 0 : -1;
 }
 
@@ -1064,7 +1162,35 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
     int timeout = (int)args->arg4;
 
     process_t *proc = process_get_current();
-    if (!proc || !fds || nfds <= 0 || nfds > 128) return -1;
+
+    extern void serial_write(const char *str);
+    extern void serial_write_num(uint64_t n);
+
+    if (!proc || !fds || nfds <= 0 || nfds > 128) {
+        serial_write("[syscall] poll: invalid check failed\n");
+        return -1;
+    }
+
+    serial_write("[syscall] poll: called by pid=");
+    serial_write_num(proc->pid);
+    serial_write(" nfds=");
+    serial_write_num(nfds);
+    serial_write(" timeout=");
+    if (timeout < 0) {
+        serial_write("-");
+        serial_write_num(-timeout);
+    } else {
+        serial_write_num(timeout);
+    }
+    serial_write("\n");
+
+    for (int i = 0; i < nfds; i++) {
+        serial_write("  fd=");
+        serial_write_num(fds[i].fd);
+        serial_write(" events=");
+        serial_write_num(fds[i].events);
+        serial_write("\n");
+    }
 
     // Initialize/reset poll table in process structure
     proc->poll_table.pt.qproc = poll_qproc;
@@ -1112,7 +1238,19 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
                         if (sock->is_connected) mask |= POLLOUT;
                     }
                 } else {
-                    if (sock->rx_pipe && sock->tx_pipe) {
+                    if (sock->is_listening) {
+                        unix_listener_t *lst = unix_find_listener(sock->path);
+                        serial_write("[poll-unix] listening path=");
+                        serial_write(sock->path);
+                        serial_write(" lst=");
+                        serial_write_num((uint64_t)lst);
+                        serial_write("\n");
+                        if (lst) {
+                            wait_queue_head_t *wq = unix_listener_get_accept_waitq(lst);
+                            if (pt->qproc && wq) pt->qproc(wq, pt);
+                            if (unix_listener_has_pending(lst)) mask |= POLLIN;
+                        }
+                    } else if (sock->rx_pipe && sock->tx_pipe) {
                         if (pt->qproc) pt->qproc(&sock->rx_pipe->read_queue, pt);
                         if (pt->qproc) pt->qproc(&sock->tx_pipe->write_queue, pt);
                         if (sock->rx_pipe->count > 0) mask |= POLLIN;
@@ -1133,6 +1271,9 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
 
     if (ready > 0 || timeout == 0) {
         poll_cleanup(proc);
+        serial_write("[syscall] poll: returning ready=");
+        serial_write_num(ready);
+        serial_write("\n");
         return (uint64_t)ready;
     }
 
@@ -1143,6 +1284,7 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
         proc->sleep_until = get_ticks() + ticks;
     }
 
+    serial_write("[syscall] poll: blocking process, returning -2\n");
     proc->state = PROC_STATE_BLOCKED;
     return (uint64_t)-2;
 }
@@ -2161,11 +2303,35 @@ static uint64_t sys_cmd_disk_replace_kernel(const syscall_args_t *args) {
 
 #define SYS_CMD_TABLE_SIZE 110
 static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
+    [SYSTEM_CMD_SET_BG_COLOR]        = sys_cmd_set_bg_color,
+    [SYSTEM_CMD_SET_BG_PATTERN]      = sys_cmd_set_bg_pattern,
+    [SYSTEM_CMD_SET_WALLPAPER]       = sys_cmd_set_wallpaper,
+    [SYSTEM_CMD_SET_DESKTOP_PROP]    = sys_cmd_set_desktop_prop,
+    [SYSTEM_CMD_SET_MOUSE_SPEED]     = sys_cmd_set_mouse_speed,
     [SYSTEM_CMD_NETWORK_INIT]        = sys_cmd_network_init,
+    [SYSTEM_CMD_GET_DESKTOP_PROP]    = sys_cmd_get_desktop_prop,
+    [SYSTEM_CMD_GET_MOUSE_SPEED]     = sys_cmd_get_mouse_speed,
+    [SYSTEM_CMD_GET_WALLPAPER_THUMB] = sys_cmd_get_wallpaper_thumb,
+    [SYSTEM_CMD_CLEAR_SCREEN]        = sys_cmd_clear_screen,
     [SYSTEM_CMD_RTC_GET]             = sys_cmd_rtc_get,
+    [SYSTEM_CMD_BEEP]                = sys_cmd_beep,
+    [SYSTEM_CMD_GET_MEM_INFO]        = sys_cmd_get_mem_info,
+    [SYSTEM_CMD_GET_TICKS]           = sys_cmd_get_ticks,
+    [SYSTEM_CMD_PCI_LIST]            = sys_cmd_pci_list,
+    [SYSTEM_CMD_NETWORK_DHCP]        = sys_cmd_network_dhcp,
+    [SYSTEM_CMD_NETWORK_GET_MAC]     = sys_cmd_network_get_mac,
+    [SYSTEM_CMD_NETWORK_GET_IP]      = sys_cmd_network_get_ip,
+    [SYSTEM_CMD_NETWORK_SET_IP]      = sys_cmd_network_set_ip,
+    [SYSTEM_CMD_UDP_SEND]            = sys_cmd_udp_send,
+    [SYSTEM_CMD_NETWORK_GET_STATS]   = sys_cmd_network_get_stats,
+    [SYSTEM_CMD_NETWORK_GET_GATEWAY]  = sys_cmd_network_get_gateway,
+    [SYSTEM_CMD_NETWORK_GET_DNS]      = sys_cmd_network_get_dns,
+    [SYSTEM_CMD_ICMP_PING]           = sys_cmd_icmp_ping,
+    [SYSTEM_CMD_NETWORK_IS_INIT]     = sys_cmd_network_is_init,
     [SYSTEM_CMD_GET_SHELL_CONFIG]    = sys_cmd_get_shell_config,
     [SYSTEM_CMD_SET_TEXT_COLOR]      = sys_cmd_set_text_color,
     [SYSTEM_CMD_NETWORK_HAS_IP]      = sys_cmd_network_has_ip,
+    [SYSTEM_CMD_SET_WALLPAPER_PATH]  = sys_cmd_set_wallpaper_path,
     [SYSTEM_CMD_RTC_SET]             = sys_cmd_rtc_set,
     [SYSTEM_CMD_TCP_CONNECT]         = sys_cmd_tcp_connect,
     [SYSTEM_CMD_TCP_SEND]            = sys_cmd_tcp_send,
@@ -2177,10 +2343,13 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
     [SYSTEM_CMD_SET_FONT]            = sys_cmd_set_font,
     [SYSTEM_CMD_SET_RAW_MODE]        = sys_cmd_set_raw_mode,
     [SYSTEM_CMD_TCP_RECV_NB]         = sys_cmd_tcp_recv_nb,
+    [SYSTEM_CMD_SET_RESOLUTION]      = sys_cmd_set_resolution,
     [SYSTEM_CMD_NETWORK_GET_NIC_NAME] = sys_cmd_network_get_nic_name,
     [SYSTEM_CMD_PARALLEL_RUN]        = sys_cmd_parallel_run,
     [SYSTEM_CMD_SET_KEYBOARD_LAYOUT] = sys_cmd_set_keyboard_layout,
     [SYSTEM_CMD_GET_KEYBOARD_LAYOUT] = sys_cmd_get_keyboard_layout,
+    [SYSTEM_CMD_SET_MOUSE_CURSOR_SCALE] = sys_cmd_set_mouse_cursor_scale,
+    [SYSTEM_CMD_GET_MOUSE_CURSOR_SCALE] = sys_cmd_get_mouse_cursor_scale,
     [SYSTEM_CMD_TTY_CREATE]          = sys_cmd_tty_create,
     [SYSTEM_CMD_TTY_READ_OUT]        = sys_cmd_tty_read_out,
     [SYSTEM_CMD_TTY_WRITE_IN]        = sys_cmd_tty_write_in,
@@ -2372,8 +2541,9 @@ static uint64_t handle_sys_mmap(const syscall_args_t *args) {
         if (!fb.address) return (uint64_t)MAP_FAILED;
 
         uint64_t phys_addr = v2p((uint64_t)fb.address);
+        uint64_t fb_flags = pt_flags | PT_CACHE_DISABLE | PT_WRITE_THROUGH;
         for (uint64_t off = 0; off < aligned_len; off += 4096) {
-            paging_map_page(proc->pml4_phys, virt_addr + off, phys_addr + off, pt_flags);
+            paging_map_page(proc->pml4_phys, virt_addr + off, phys_addr + off, fb_flags);
         }
         return virt_addr;
     }
@@ -2592,7 +2762,8 @@ uint64_t syscall_handler_c(registers_t *regs) {
     
     // Check for context-switching syscalls
     if (syscall_num == 0 || syscall_num == 60) { // EXIT
-        return process_terminate_current();
+        int status = (int)regs->rdi;
+        return process_terminate_current_with_status((status & 0xff) << 8);
     }
     
     if (syscall_num == 10) { // KILL

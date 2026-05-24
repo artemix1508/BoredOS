@@ -890,6 +890,8 @@ void graphics_clear_back_buffer(uint32_t color) {
 
 void graphics_flip_buffer(void) {
     if (!g_fb) return;
+    extern bool tty_get_blit_enabled(void);
+    if (!tty_get_blit_enabled()) return;
 
     uint64_t flags = spinlock_acquire_irqsave(&graphics_lock);
     if (!g_dirty.active) {
@@ -1123,6 +1125,9 @@ void graphics_blit_buffer(uint32_t *src, int dst_x, int dst_y, int w, int h) {
 }
 void graphics_copy_buffer(uint32_t *src) {
     if (!g_fb || !src) return;
+    // Don't touch the real framebuffer while an X server has exclusive access (KD_GRAPHICS)
+    extern bool tty_get_blit_enabled(void);
+    if (!tty_get_blit_enabled()) return;
     uint8_t *dst = (uint8_t *)g_fb->address;
     int width = g_fb->width;
     int height = g_fb->height;

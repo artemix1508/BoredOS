@@ -5,6 +5,9 @@
 #include "process.h"
 #include "memory_manager.h"
 
+extern void serial_write(const char *str);
+extern void serial_write_num(uint64_t n);
+
 void wait_queue_init(wait_queue_head_t *h) {
     if (!h) return;
     h->head = NULL;
@@ -47,6 +50,7 @@ void wait_queue_wake_all(wait_queue_head_t *h) {
     while (curr) {
         if (curr->proc) {
             curr->proc->state = PROC_STATE_RUNNING;
+            curr->proc->sleep_until = 0;
         }
         curr = curr->next;
     }

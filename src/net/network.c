@@ -789,8 +789,12 @@ void network_socket_close(void *s) {
     }
     if (sock->pcb) {
         tcp_arg((struct tcp_pcb *)sock->pcb, NULL);
-        tcp_recv((struct tcp_pcb *)sock->pcb, NULL);
-        tcp_err((struct tcp_pcb *)sock->pcb, NULL);
+        if (!sock->is_listening) {
+            tcp_recv((struct tcp_pcb *)sock->pcb, NULL);
+            tcp_err((struct tcp_pcb *)sock->pcb, NULL);
+        } else {
+            tcp_accept((struct tcp_pcb *)sock->pcb, NULL);
+        }
 
         err_t err = tcp_close((struct tcp_pcb *)sock->pcb);
         if (err != ERR_OK) {
