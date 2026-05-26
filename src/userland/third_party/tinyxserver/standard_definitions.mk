@@ -1,3 +1,5 @@
+BOREDOS_ROOT ?= $(shell cd $(dir $(lastword $(MAKEFILE_LIST)))/../../../../ && pwd)
+
 ####compiler####
 CC=x86_64-elf-gcc
 
@@ -10,8 +12,8 @@ COMPFLAGS=-pipe -ffreestanding -O2 -fno-stack-protector -fno-stack-check -fno-lt
 -U__INT_FAST32_TYPE__ -D__INT_FAST32_TYPE__="long int" \
 -U__UINT_FAST32_TYPE__ -D__UINT_FAST32_TYPE__="long unsigned int" \
 -D_GNU_SOURCE -D_DEFAULT_SOURCE \
--isystem /Users/chris/BoredOS/src/userland/mlibc/build/mlibc-headers/usr/include \
--I. -I/Users/chris/BoredOS/src/userland/sdk/include -I/Users/chris/BoredOS/src/userland/third_party/xorgproto/include -I/Users/chris/BoredOS/src/userland/third_party/xtrans
+-isystem $(BOREDOS_ROOT)/src/userland/mlibc/build/mlibc-headers/usr/include \
+-I. -I$(BOREDOS_ROOT)/src/userland/sdk/include -I$(BOREDOS_ROOT)/src/userland/third_party/xorgproto/include -I$(BOREDOS_ROOT)/src/userland/third_party/xtrans
 
 ####extensions####
 DPMS=-DDPMSExtension
@@ -83,11 +85,11 @@ $(BIGREQS) \
 
 LDFLAGS=-Wl,-m,elf_x86_64 -nostdlib -static -no-pie -Wl,-Ttext=0x40000000 \
 -Wl,--no-dynamic-linker -Wl,-z,text -Wl,-z,max-page-size=0x1000 -Wl,-z,muldefs -Wl,-e,_start \
-/Users/chris/BoredOS/src/userland/mlibc/build/sysdeps/boredos/crt1.o \
-/Users/chris/BoredOS/src/userland/bin/crti.o \
-/Users/chris/BoredOS/src/userland/bin/crtn.o \
-/Users/chris/BoredOS/src/userland/sdk/lib/libboredos.a \
-/Users/chris/BoredOS/src/userland/sdk/lib/libXfont.a \
-/Users/chris/BoredOS/src/userland/sdk/lib/libXau.a \
-/Users/chris/BoredOS/src/userland/sdk/lib/libz.a \
-/Users/chris/BoredOS/src/userland/mlibc/build/libc.a
+$(BOREDOS_ROOT)/src/userland/mlibc/build/sysdeps/boredos/crt1.o \
+$(BOREDOS_ROOT)/src/userland/bin/crti.o \
+$(BOREDOS_ROOT)/src/userland/bin/crtn.o \
+$(BOREDOS_ROOT)/src/userland/sdk/lib/libboredos.a \
+$(BOREDOS_ROOT)/src/userland/sdk/lib/libXfont.a \
+$(BOREDOS_ROOT)/src/userland/sdk/lib/libXau.a \
+$(BOREDOS_ROOT)/src/userland/sdk/lib/libz.a \
+$(BOREDOS_ROOT)/src/userland/mlibc/build/libc.a

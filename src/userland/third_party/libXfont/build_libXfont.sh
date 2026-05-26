@@ -1,6 +1,22 @@
 #!/bin/bash
 set -e
 
+# Resolve repo root from env, git, or script location.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOREDOS_ROOT="${BOREDOS_ROOT:-}"
+if [ -z "$BOREDOS_ROOT" ]; then
+  if command -v git >/dev/null 2>&1; then
+    BOREDOS_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+  fi
+  if [ -z "$BOREDOS_ROOT" ]; then
+    BOREDOS_ROOT="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+  fi
+fi
+if [ ! -f "$BOREDOS_ROOT/Makefile" ]; then
+  echo "[ERR] Could not resolve BoredOS root (missing Makefile)." >&2
+  exit 1
+fi
+
 CC="x86_64-elf-gcc"
 CFLAGS=(
   "-Wall"
@@ -28,7 +44,7 @@ CFLAGS=(
   "-D__UINT_FAST32_TYPE__=long unsigned int"
   "-D_GNU_SOURCE"
   "-D_DEFAULT_SOURCE"
-  "-isystem" "/Users/chris/BoredOS/src/userland/mlibc/build/mlibc-headers/usr/include"
+  "-isystem" "${BOREDOS_ROOT}/src/userland/mlibc/build/mlibc-headers/usr/include"
   "-DHAVE_CONFIG_H"
   "-I."
   "-Iinclude"
