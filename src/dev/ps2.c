@@ -87,8 +87,8 @@ uint64_t keyboard_handler(registers_t *regs) {
         // Push raw scancode to active TTY (for /dev/keyboardX)
         tty_push_key(tty_get_active_id(), scancode);
 
-        // Push processed character to active TTY (for /dev/ttyX)
-        if (ev.pressed) {
+        // Push processed character to active TTY (for /dev/ttyX) only if text mode is active (not KD_GRAPHICS)
+        if (ev.pressed && tty_get_blit_enabled()) {
             uint32_t cp = 0;
             if (ev.is_text) {
                 cp = ev.codepoint;
@@ -182,7 +182,7 @@ uint64_t keyboard_handler(registers_t *regs) {
 // --- Mouse ---
 static uint8_t mouse_cycle = 0;
 static int8_t mouse_byte[4];
-static bool mouse_has_wheel = false;
+static bool mouse_has_wheel = true;
 
 void mouse_wait(uint8_t type) {
     uint32_t timeout = 100000;
@@ -241,7 +241,8 @@ void mouse_init(void) {
     mouse_write(0xF2);
     mouse_read();
     uint8_t id = mouse_read();
-    if (id == 3) mouse_has_wheel = true;
+    (void)id;
+    mouse_has_wheel = true;
 
     // Enable Streaming
     mouse_write(0xF4);
@@ -259,7 +260,7 @@ uint64_t mouse_handler(registers_t *regs) {
     uint8_t b = inb(0x60);
 
     if (mouse_cycle == 0) {
-        if ((b & 0x08) == 0) {
+        if ((b & 0xC8) != 0x08) {
             // Out of sync
         } else {
             mouse_byte[0] = b;
@@ -279,7 +280,7 @@ uint64_t mouse_handler(registers_t *regs) {
             packet[1] = mouse_byte[1];
             packet[2] = mouse_byte[2];
             packet[3] = 0;
-            tty_push_mouse(tty_get_active_id(), packet, 3);
+            tty_push_mouse(tty_get_active_id(), packet, 4);
         }
     } else if (mouse_cycle == 3) {
         mouse_byte[3] = b;

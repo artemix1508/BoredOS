@@ -37,6 +37,7 @@ typedef struct {
     int cursor_x, cursor_y;
     bool cursor_visible;
     uint32_t fg_color, bg_color;
+    bool blit_enabled;
     
     tty_queue_t key_queue;
     tty_queue_t mouse_queue;

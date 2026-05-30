@@ -62,6 +62,7 @@ void tty_init(void) {
         g_ttys[i].cursor_visible = true;
         g_ttys[i].fg_color = 0xFFFFFFFF;
         g_ttys[i].bg_color = 0xFF000000;
+        g_ttys[i].blit_enabled = true;
         g_ttys[i].fg_pid = -1;
         g_ttys[i].esc_state = 0;
         g_ttys[i].esc_num_params = 0;
@@ -130,16 +131,32 @@ static void tty_draw_char(tty_t *t, int x, int y, char c, uint32_t fg, uint32_t 
     }
 }
 
-static void tty_draw_cursor(tty_t *t) {
+
+static uint32_t g_cursor_backup[8 * 8];
+
+static void tty_composite_cursor_vfb(tty_t *t) {
     if (!t->cursor_visible) return;
     if (t->cursor_x < 0 || t->cursor_x + 8 > t->width) return;
     if (t->cursor_y < 0 || t->cursor_y + 8 > t->height) return;
-    
-    // Draw inverted block cursor
-    for (int row = 0; row < 8; row++) {
-        uint32_t *vfb_row = &t->vfb[(t->cursor_y + row) * t->width + t->cursor_x];
-        for (int col = 0; col < 8; col++) {
-            vfb_row[col] = t->fg_color;
+
+    for (int r = 0; r < 8; r++) {
+        uint32_t *row = &t->vfb[(t->cursor_y + r) * t->width + t->cursor_x];
+        for (int c = 0; c < 8; c++) {
+            g_cursor_backup[r * 8 + c] = row[c];
+            row[c] = (~row[c]) | 0xFF000000; 
+        }
+    }
+}
+
+static void tty_restore_cursor_vfb(tty_t *t) {
+    if (!t->cursor_visible) return;
+    if (t->cursor_x < 0 || t->cursor_x + 8 > t->width) return;
+    if (t->cursor_y < 0 || t->cursor_y + 8 > t->height) return;
+
+    for (int r = 0; r < 8; r++) {
+        uint32_t *row = &t->vfb[(t->cursor_y + r) * t->width + t->cursor_x];
+        for (int c = 0; c < 8; c++) {
+            row[c] = g_cursor_backup[r * 8 + c];
         }
     }
 }
@@ -424,10 +441,13 @@ int tty_ioctl(int id, uint64_t request, void *arg) {
     } else if (request == KDSETMODE) {
         uint64_t mode = (uint64_t)arg;
         if (mode == KD_GRAPHICS) {
-            tty_set_blit_enabled(false);
+            t->blit_enabled = false;
         } else if (mode == KD_TEXT) {
-            tty_set_blit_enabled(true);
+            t->blit_enabled = true;
         }
+        return 0;
+    } else if (request == 0x5606) { // VT_ACTIVATE
+        tty_switch(id);
         return 0;
     }
     
@@ -479,23 +499,25 @@ int tty_get_foreground(int id) {
     return t->fg_pid;
 }
 
-volatile bool g_tty_blit_enabled = true;
-
 void tty_set_blit_enabled(bool enabled) {
-    g_tty_blit_enabled = enabled;
+    tty_t *t = tty_get(g_active_tty);
+    if (t) t->blit_enabled = enabled;
 }
 
 bool tty_get_blit_enabled(void) {
-    return g_tty_blit_enabled;
+    tty_t *t = tty_get(g_active_tty);
+    if (!t) return true;
+    return t->blit_enabled;
 }
 
 void tty_blit_active(void) {
-    if (!g_tty_blit_enabled) return;
     tty_t *t = tty_get(g_active_tty);
-    if (!t) return;
-    
+    if (!t || !t->blit_enabled) return;
+
     extern void graphics_copy_buffer(uint32_t *src);
+    tty_composite_cursor_vfb(t);
     graphics_copy_buffer(t->vfb);
+    tty_restore_cursor_vfb(t);
 }
 
 

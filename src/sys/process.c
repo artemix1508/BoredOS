@@ -908,8 +908,10 @@ static void process_cleanup_inner(process_t *proc) {
     }
     proc->mmap_allocation_count = 0;
 
-    extern void tty_set_blit_enabled(bool enabled);
-    tty_set_blit_enabled(true);
+    if (proc->is_terminal_proc) {
+        extern void tty_set_blit_enabled(bool enabled);
+        tty_set_blit_enabled(true);
+    }
 
     for (int i = 0; i < MAX_PROCESSES; i++) {
         if (processes[i].parent_pid == proc->pid) {
