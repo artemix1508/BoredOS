@@ -64,8 +64,10 @@ LUA_CFLAGS = -std=gnu11 -ffreestanding -O2 -fno-stack-protector -fno-stack-check
              -Wno-redundant-decls -Wno-old-style-definition -Wno-missing-prototypes \
              -Wno-implicit-fallthrough -Wno-type-limits
 
+TCC_DIR = cli/third_party/tcc
+
 all: $(BIN_DIR) $(LIBC_OBJS) $(BIN_DIR)/crt1.o $(BIN_DIR)/crti.o $(BIN_DIR)/crtn.o sdk $(APP_ELFS) \
-     $(BIN_DIR)/lua.elf $(BIN_DIR)/tcc.elf $(BIN_DIR)/empty.o 
+     $(BIN_DIR)/lua.elf $(BIN_DIR)/tcc.elf $(BIN_DIR)/empty.o $(TCC_DIR)/libtcc1.a
 
 # ---------------------------------------------------------------------------
 # Directories and utility objects
@@ -190,7 +192,6 @@ $(BIN_DIR)/lua.elf: $(LIBC_OBJS) $(BIN_DIR)/lua_onelua.o $(BIN_DIR)/lua.note.o
 # ---------------------------------------------------------------------------
 # TCC — Tiny C Compiler (uses its own internal libc; links libboredos for OS API)
 # ---------------------------------------------------------------------------
-TCC_DIR = cli/third_party/tcc
 $(BIN_DIR)/tcc.elf: $(LIBC_OBJS) $(BIN_DIR)/tcc.note.o sdk $(TCC_DIR)/tcc.c $(TCC_DIR)/config.h $(TCC_DIR)/tcc.h
 	cd $(TCC_DIR) && x86_64-elf-gcc -O2 -m64 -march=x86-64 -fno-stack-protector \
 	    -fno-stack-check -fno-lto -fno-pie -ffreestanding -nostdlib -static -no-pie \
@@ -198,7 +199,10 @@ $(BIN_DIR)/tcc.elf: $(LIBC_OBJS) $(BIN_DIR)/tcc.note.o sdk $(TCC_DIR)/tcc.c $(TC
 	    -Ttext=0x40000000 tcc.c -o tcc.elf ../../../bin/libc_*.o ../../../bin/crt0.o ../../../bin/stb_image.o
 	cp $(TCC_DIR)/tcc.elf $(BIN_DIR)/tcc.elf
 
+$(TCC_DIR)/libtcc1.a: $(TCC_DIR)/build_libtcc1.sh
+	cd $(TCC_DIR) && sh ./build_libtcc1.sh
+
 # ---------------------------------------------------------------------------
-# Build TCC's libtcc1.a runtime library
 clean:
 	rm -rf $(BIN_DIR) $(SDK_DIR)
+	rm -f $(TCC_DIR)/libtcc1.a
