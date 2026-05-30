@@ -241,6 +241,10 @@ $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland
 	@if [ -f $(SRC_DIR)/library/bsh/startup.bsh ]; then printf "  -> startup.bsh\n"; cp $(SRC_DIR)/library/bsh/startup.bsh $(BUILD_DIR)/initrd/Library/bsh/; fi
 	@if [ -f $(SRC_DIR)/library/bsh/boot.bsh ]; then printf "  -> boot.bsh\n"; cp $(SRC_DIR)/library/bsh/boot.bsh $(BUILD_DIR)/initrd/Library/bsh/; fi
 	@if [ -f $(SRC_DIR)/library/conf/sysfetch.cfg ]; then printf "  -> sysfetch.cfg\n"; cp $(SRC_DIR)/library/conf/sysfetch.cfg $(BUILD_DIR)/initrd/Library/conf/; fi
+	@if [ -f $(SRC_DIR)/library/conf/taskbar.conf ]; then printf "  -> taskbar.conf\n"; cp $(SRC_DIR)/library/conf/taskbar.conf $(BUILD_DIR)/initrd/Library/conf/; fi
+	@if [ -f $(SRC_DIR)/library/conf/wallpaper.conf ]; then printf "  -> wallpaper.conf\n"; cp $(SRC_DIR)/library/conf/wallpaper.conf $(BUILD_DIR)/initrd/Library/conf/; fi
+	@mkdir -p $(BUILD_DIR)/initrd/etc/nova
+	@if [ -f $(SRC_DIR)/library/conf/nova.conf ]; then printf "  -> nova.conf\n"; cp $(SRC_DIR)/library/conf/nova.conf $(BUILD_DIR)/initrd/etc/nova/; fi
 
 	@printf "$(YELLOW)[COPY]$(RESET) Skipped DOOM assets (deleted)\n"
 

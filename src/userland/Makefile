@@ -7,7 +7,7 @@ LD  = x86_64-elf-ld
 
 CFLAGS  = -Wall -Wextra -std=gnu11 -ffreestanding -O2 -fno-stack-protector \
           -fno-stack-check -fno-lto -fno-pie -m64 -march=x86-64 -mno-red-zone \
-          -I. -Ilibc -Ilibboredos -I../sys -I../graphics
+          -I. -Ilibc -I../sys -I../graphics
 
 LDFLAGS = -m elf_x86_64 -nostdlib -static -no-pie -Ttext=0x40000000 \
           --no-dynamic-linker -z text -z max-page-size=0x1000 -e _start
@@ -31,8 +31,8 @@ LIBC_OBJS    = $(patsubst libc/%.c, $(BIN_DIR)/libc_%.o, $(LIBC_SOURCES)) \
 # libboredos: BoredOS-specific API (syscall wrappers, network, disk helpers)
 # Kept separate from the standard C library.
 # ---------------------------------------------------------------------------
-BOREDOS_SRCS = libboredos/syscall.c libboredos/utf-8.c
-BOREDOS_OBJS = $(patsubst libboredos/%.c, $(BIN_DIR)/boredos_%.o, $(BOREDOS_SRCS))
+BOREDOS_SRCS = libnovaproto/novaproto.c libtheme/theme.c libui/ui.c
+BOREDOS_OBJS = $(BIN_DIR)/novaproto.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o
 
 # ---------------------------------------------------------------------------
 # App source discovery
@@ -41,8 +41,8 @@ define app_source_for
 $(if $(filter doom,$1),$(APP_METADATA_SOURCE_DOOM),$(if $(filter lua,$1),$(APP_METADATA_SOURCE_LUA),$(if $(filter tcc,$1),cli/third_party/tcc/tcc.c,$(firstword $(foreach d,$(APP_SOURCE_DIRS),$(wildcard $(d)/$1.c))))))
 endef
 
-VPATH = cli sys libc libboredos net cli/third_party
-vpath %.c cli sys libc libboredos net cli/third_party
+VPATH = cli sys libc net cli/third_party libnovaproto libtheme libui
+vpath %.c cli sys libc net cli/third_party libnovaproto libtheme libui
 
 APP_SOURCES_FULL = $(wildcard cli/*.c sys/*.c *.c net/*.c cli/third_party/*.c)
 APP_SOURCES      = $(filter-out stb_image.c, $(APP_SOURCES_FULL))
@@ -58,13 +58,13 @@ DOOM_OBJS        = $(patsubst games/doom/%.c, $(BIN_DIR)/%.o, $(DOOM_SOURCES))
 LUA_DIR    = cli/third_party/lua
 LUA_CFLAGS = -std=gnu11 -ffreestanding -O2 -fno-stack-protector -fno-stack-check \
              -fno-lto -fno-pie -m64 -march=x86-64 -mno-red-zone \
-             -isystem $(LUA_DIR)/sysinclude -I. -Ilibc -Ilibboredos -I$(LUA_DIR) -DLUA_USE_C89 \
+             -isystem $(LUA_DIR)/sysinclude -I. -Ilibc -I$(LUA_DIR) -DLUA_USE_C89 \
              -Wno-conversion -Wno-sign-conversion -Wno-double-promotion \
              -Wno-unused-parameter -Wno-missing-declarations -Wno-shadow -Wno-undef \
              -Wno-redundant-decls -Wno-old-style-definition -Wno-missing-prototypes \
              -Wno-implicit-fallthrough -Wno-type-limits
 
-all: $(BIN_DIR) $(LIBC_OBJS) $(BIN_DIR)/crt1.o $(BIN_DIR)/crti.o $(BIN_DIR)/crtn.o $(SDK_DIR)/lib/libboredos.a $(APP_ELFS) \
+all: $(BIN_DIR) $(LIBC_OBJS) $(BIN_DIR)/crt1.o $(BIN_DIR)/crti.o $(BIN_DIR)/crtn.o sdk $(APP_ELFS) \
      $(BIN_DIR)/lua.elf $(BIN_DIR)/tcc.elf $(BIN_DIR)/empty.o
 
 # ---------------------------------------------------------------------------
@@ -99,17 +99,24 @@ $(BIN_DIR)/empty.o: | $(BIN_DIR)
 # ---------------------------------------------------------------------------
 # libboredos.a — BoredOS platform API (syscall.c, utf-8.c, etc.)
 # ---------------------------------------------------------------------------
-$(BIN_DIR)/boredos_%.o: libboredos/%.c | $(BIN_DIR)
+$(BIN_DIR)/novaproto.o: libnovaproto/novaproto.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SDK_DIR)/lib/libboredos.a: $(BOREDOS_OBJS) $(LIBC_OBJS)
+$(BIN_DIR)/theme.o: libtheme/theme.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BIN_DIR)/ui.o: libui/ui.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(SDK_DIR)/lib/libboredos.a: $(LIBC_OBJS) $(BIN_DIR)/novaproto.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o
 	mkdir -p $(SDK_DIR)/lib $(SDK_DIR)/include/sys $(SDK_DIR)/include/linux
 	cp libc/*.h $(SDK_DIR)/include/ 2>/dev/null || true
 	-cp libc/sys/*.h $(SDK_DIR)/include/sys/
-	cp libboredos/*.h $(SDK_DIR)/include/ 2>/dev/null || true
-	-cp libboredos/sys/*.h $(SDK_DIR)/include/sys/
-	-cp libboredos/linux/*.h $(SDK_DIR)/include/linux/
-	x86_64-elf-ar rcs $@ $(BOREDOS_OBJS) $(patsubst $(BIN_DIR)/crt0.o,,$(patsubst $(BIN_DIR)/stb_image.o,,$(filter-out $(BIN_DIR)/crt0.o $(BIN_DIR)/stb_image.o,$(LIBC_OBJS))))
+	cp libnovaproto/*.h $(SDK_DIR)/include/ 2>/dev/null || true
+	cp libtheme/*.h $(SDK_DIR)/include/ 2>/dev/null || true
+	cp libui/*.h $(SDK_DIR)/include/ 2>/dev/null || true
+	touch $(SDK_DIR)/include/linux/fb.h
+	x86_64-elf-ar rcs $@ $(BIN_DIR)/novaproto.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(patsubst $(BIN_DIR)/crt0.o,,$(patsubst $(BIN_DIR)/stb_image.o,,$(filter-out $(BIN_DIR)/crt0.o $(BIN_DIR)/stb_image.o,$(LIBC_OBJS))))
 
 sdk: $(SDK_DIR)/lib/libboredos.a
 
@@ -135,6 +142,20 @@ $(BIN_DIR)/%.o: %.c | $(BIN_DIR)
 # ---------------------------------------------------------------------------
 $(BIN_DIR)/viewer.elf: $(LIBC_OBJS) $(BIN_DIR)/viewer.o $(BIN_DIR)/viewer.note.o
 	$(LD) $(LDFLAGS) $^ -o $@
+
+
+$(BIN_DIR)/nova.elf: $(LIBC_OBJS) $(BIN_DIR)/nova.o $(BIN_DIR)/nova.note.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(BIN_DIR)/novaproto.o
+	$(LD) $(LDFLAGS) $^ -o $@
+
+$(BIN_DIR)/taskbar.elf: $(LIBC_OBJS) $(BIN_DIR)/taskbar.o $(BIN_DIR)/taskbar.note.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(BIN_DIR)/novaproto.o
+	$(LD) $(LDFLAGS) $^ -o $@
+
+$(BIN_DIR)/wallpaperd.elf: $(LIBC_OBJS) $(BIN_DIR)/wallpaperd.o $(BIN_DIR)/wallpaperd.note.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(BIN_DIR)/novaproto.o
+	$(LD) $(LDFLAGS) $^ -o $@
+
+$(BIN_DIR)/helloworld.elf: $(LIBC_OBJS) $(BIN_DIR)/helloworld.o $(BIN_DIR)/helloworld.note.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(BIN_DIR)/novaproto.o
+	$(LD) $(LDFLAGS) $^ -o $@
+
 
 $(BIN_DIR)/about.elf: $(LIBC_OBJS) $(BIN_DIR)/about.o $(BIN_DIR)/about.note.o
 	$(LD) $(LDFLAGS) $^ -o $@
@@ -174,9 +195,8 @@ $(BIN_DIR)/tcc.elf: $(LIBC_OBJS) $(BIN_DIR)/tcc.note.o sdk $(TCC_DIR)/tcc.c $(TC
 	cd $(TCC_DIR) && x86_64-elf-gcc -O2 -m64 -march=x86-64 -fno-stack-protector \
 	    -fno-stack-check -fno-lto -fno-pie -ffreestanding -nostdlib -static -no-pie \
 	    -DONE_SOURCE=1 -DTARGETOS_BoredOS=1 -I. -I../../../sdk/include \
-	    -Ttext=0x40000000 tcc.c -o tcc.elf ../../../sdk/lib/libboredos.a
+	    -Ttext=0x40000000 tcc.c -o tcc.elf ../../../bin/libc_*.o ../../../bin/crt0.o ../../../bin/stb_image.o
 	cp $(TCC_DIR)/tcc.elf $(BIN_DIR)/tcc.elf
-	cd $(TCC_DIR) && sh build_libtcc1.sh
 
 # ---------------------------------------------------------------------------
 clean:
