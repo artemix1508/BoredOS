@@ -189,6 +189,7 @@ int main(int argc, char *argv[]) {
         usleep(50 * 1000);
         
         draw_pattern_mmap(fb_mem, &vinfo, &finfo);
+        ioctl(fd, FBIOPAN_DISPLAY, NULL);
         
         printf("Holding screen for 5 seconds to display the pattern...\n");
         usleep(5000 * 1000);

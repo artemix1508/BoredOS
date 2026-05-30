@@ -28,6 +28,7 @@ int main(int argc, char **argv) {
     printf("meminfo        - Print memory information\n");
     printf("hexdump <file> - Display file contents in hexadecimal.\n");
     printf("ps [options]   - List running processes\n");
+    printf("kill <pid>     - Terminate a process\n");
     printf("lsblk          - List block devices and partitions\n");
     printf("cowsay [msg]   - Fun cow says something\n");
     printf("beep           - Make a beep sound\n");
@@ -45,6 +46,7 @@ int main(int argc, char **argv) {
     printf("head           - print lines from the top down\n");
     printf("tail           - print lines from the bottom up\n");
     printf("tar <args>     - Create a tar archive\n");
+    printf("kilo <file>    - Simple text editor\n");
     printf("\nHint: Use Ctrl+C to force quit any running application.\n");
     return 0;
 }

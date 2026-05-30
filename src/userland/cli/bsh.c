@@ -2191,7 +2191,7 @@ static int read_line(char *out, int max_len, const char *prompt_tmpl) {
 
     while (1) {
         struct pollfd pfd = { .fd = 0, .events = POLLIN, .revents = 0 };
-        sys_poll(&pfd, 1, -1); // Wait indefinitely
+        poll(&pfd, 1, -1); // Wait indefinitely
 
         char ch = 0;
         int got = sys_tty_read_in(&ch, 1);
@@ -2308,8 +2308,8 @@ static int read_line(char *out, int max_len, const char *prompt_tmpl) {
             char seq[2];
             int g1 = 0, g2 = 0;
             struct pollfd pfd = { .fd = 0, .events = POLLIN, .revents = 0 };
-            if (sys_poll(&pfd, 1, 50) > 0) g1 = sys_tty_read_in(&seq[0], 1);
-            if (g1 > 0 && sys_poll(&pfd, 1, 50) > 0) g2 = sys_tty_read_in(&seq[1], 1);
+            if (poll(&pfd, 1, 50) > 0) g1 = sys_tty_read_in(&seq[0], 1);
+            if (g1 > 0 && poll(&pfd, 1, 50) > 0) g2 = sys_tty_read_in(&seq[1], 1);
             
             if (g1 > 0 && g2 > 0 && seq[0] == '[') {
                 if (seq[1] == 'A') ch = 17;
