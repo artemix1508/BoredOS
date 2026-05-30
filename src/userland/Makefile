@@ -159,7 +159,7 @@ $(BIN_DIR)/helloworld.elf: $(LIBC_OBJS) $(BIN_DIR)/helloworld.o $(BIN_DIR)/hello
 	$(LD) $(LDFLAGS) $^ -o $@
 
 
-$(BIN_DIR)/about.elf: $(LIBC_OBJS) $(BIN_DIR)/about.o $(BIN_DIR)/about.note.o
+$(BIN_DIR)/about.elf: $(LIBC_OBJS) $(BIN_DIR)/about.o $(BIN_DIR)/about.note.o $(BIN_DIR)/theme.o $(BIN_DIR)/ui.o $(BIN_DIR)/novaproto.o
 	$(LD) $(LDFLAGS) $^ -o $@
 
 $(BIN_DIR)/settings.elf: $(LIBC_OBJS) $(BIN_DIR)/settings.o $(BIN_DIR)/settings.note.o

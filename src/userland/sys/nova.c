@@ -102,16 +102,14 @@ typedef struct surface {
 static surface_t *surface_head = NULL;
 static surface_t *surface_tail = NULL;
 static uint32_t next_surface_id = 1;
-static bool quit_loop = false;
 
 // Global theme options
 static uint32_t active_titlebar_top = 0xFF393939;
 static uint32_t active_titlebar_bottom = 0xFF727272;
 static uint32_t inactive_titlebar_top = 0xFF1F1E1E;
 static uint32_t inactive_titlebar_bottom = 0xFF3C3C3C;
-static uint32_t active_border = 0xFF393939;
-static uint32_t inactive_border = 0xFF3C3C3C;
-static uint32_t desktop_bg = 0xFF2D2D2D;
+static uint32_t active_border = 0xFF89B4FA;
+static uint32_t inactive_border = 0xFF313244;
 
 // Graphics structures
 static int fb_fd = -1;
@@ -125,6 +123,7 @@ static uint32_t *back_buffer = NULL;
 static uint32_t *resize_preview_pixels = NULL;
 static uint32_t resize_preview_capacity = 0;
 
+/* Forward declaration so functions earlier in the file can call it */
 void copy_box_to_fb(int bx, int by, int bw, int bh);
 
 // Mouse coordinates
@@ -202,7 +201,6 @@ void load_nova_config(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) return;
 
-    bool has_desktop_bg = false;
     char line[256];
     while (fgets(line, sizeof(line), f)) {
         char *start = line;
@@ -236,13 +234,6 @@ void load_nova_config(const char *path) {
             active_border = theme_resolve_color(val, active_border);
         } else if (strcmp(key, "inactive_border") == 0) {
             inactive_border = theme_resolve_color(val, inactive_border);
-        } else if (strcmp(key, "desktop_bg") == 0) {
-            desktop_bg = theme_resolve_color(val, desktop_bg);
-            has_desktop_bg = true;
-        } else if (strcmp(key, "panel_bg") == 0) {
-            if (!has_desktop_bg) {
-                desktop_bg = theme_resolve_color(val, desktop_bg);
-            }
         } else if (strcmp(key, "shelf") == 0 || strcmp(key, "topbar") == 0 || strcmp(key, "taskbar") == 0 || strcmp(key, "wallpaperd") == 0) {
             if (autostart_count < 8) {
                 strncpy(autostarts[autostart_count].path, val, sizeof(autostarts[autostart_count].path) - 1);
@@ -470,26 +461,6 @@ surface_t *surface_get_focused(void) {
     return NULL;
 }
 
-static int send_all(int fd, const void *buf, size_t size) {
-    size_t written = 0;
-    while (written < size) {
-        ssize_t rc = send(fd, (const char *)buf + written, size - written, 0);
-        if (rc <= 0) return -1;
-        written += rc;
-    }
-    return 0;
-}
-
-static int recv_all(int fd, void *buf, size_t size) {
-    size_t read_bytes = 0;
-    while (read_bytes < size) {
-        ssize_t rc = recv(fd, (char *)buf + read_bytes, size - read_bytes, 0);
-        if (rc <= 0) return -1;
-        read_bytes += rc;
-    }
-    return 0;
-}
-
 // Send frame headers to socket clients
 static int send_frame(int fd, uint32_t type, uint32_t surface_id, const void *payload, uint32_t size) {
     (void)surface_id;
@@ -501,13 +472,13 @@ static int send_frame(int fd, uint32_t type, uint32_t surface_id, const void *pa
     header.payload_size = size;
 
     // Send header
-    if (send_all(fd, &header, sizeof(header)) < 0) {
+    if (send(fd, &header, sizeof(header), 0) != sizeof(header)) {
         return -1;
     }
 
     // Send payload
     if (size > 0 && payload) {
-        if (send_all(fd, payload, size) < 0) {
+        if (send(fd, payload, size, 0) != (ssize_t)size) {
             return -1;
         }
     }
@@ -761,12 +732,18 @@ surface_t *surface_at(int px, int py, int *click_region_out) {
 
             bool in_outer = px >= outer_left && px < outer_right && py >= outer_top && py < outer_bottom;
 
-            bool on_titlebar = (py >= curr->y - TITLEBAR_HEIGHT && py < curr->y);
-            if (px >= curr->x && px < curr->x + (int)curr->w && on_titlebar) {
-                if (px >= curr->x + (int)curr->w - 24 && px < curr->x + (int)curr->w) {
+            // Check titlebar
+            if (px >= curr->x && px < curr->x + (int)curr->w &&
+                py >= curr->y - TITLEBAR_HEIGHT && py < curr->y) {
+                
+                // Check close button (generous 24x26 target area in top-right)
+                if (px >= curr->x + (int)curr->w - 24 && px < curr->x + (int)curr->w &&
+                    py >= curr->y - TITLEBAR_HEIGHT && py < curr->y) {
                     region = 2;
                 }
-                else if (px >= curr->x + (int)curr->w - 48 && px < curr->x + (int)curr->w - 24) {
+                // Check minimize button (generous 24x26 target area next to close button)
+                else if (px >= curr->x + (int)curr->w - 48 && px < curr->x + (int)curr->w - 24 &&
+                         py >= curr->y - TITLEBAR_HEIGHT && py < curr->y) {
                     region = 4;
                 } else {
                     region = 1;
@@ -774,7 +751,7 @@ surface_t *surface_at(int px, int py, int *click_region_out) {
                 hit = true;
             }
 
-            if (in_outer && region != 2 && region != 4 && !on_titlebar) {
+            if (in_outer && region != 2 && region != 4) {
                 bool near_left = px < outer_left + RESIZE_EDGE_MARGIN;
                 bool near_right = px >= outer_right - RESIZE_EDGE_MARGIN;
                 bool near_top = py < outer_top + RESIZE_EDGE_MARGIN;
@@ -902,7 +879,7 @@ void draw_cursor(uint32_t *buffer, int w, int h, int mouse_x, int mouse_y) {
         }
     }
 }
-// Having this as a font would be "better", but for now this is good enough and "just works".
+
 void copy_box_to_fb(int bx, int by, int bw, int bh) {
     if (bw <= 0 || bh <= 0 || bx >= screen_w || by >= screen_h || bx + bw <= 0 || by + bh <= 0) {
         return;
@@ -1102,6 +1079,7 @@ void update_cursor_atomic_combined(int new_x, int new_y) {
     
     if (bw <= 0 || bh <= 0) return;
     
+    // 1. Save clean pixels under the new cursor from back_buffer
     uint32_t saved_pixels[12 * 19];
     for (int y = 0; y < cursor_h; y++) {
         int py = new_y + y;
@@ -1111,13 +1089,18 @@ void update_cursor_atomic_combined(int new_x, int new_y) {
             if (bb_row && px >= 0 && px < screen_w) {
                 saved_pixels[y * cursor_w + x] = bb_row[px];
             } else {
-                saved_pixels[y * cursor_w + x] = desktop_bg; // Fallback
+                saved_pixels[y * cursor_w + x] = 0xFF1E1E2E; // Fallback
             }
         }
     }
+    
+    // 2. Draw the cursor onto the back_buffer temporarily
     draw_cursor(back_buffer, screen_w, screen_h, new_x, new_y);
+    
+    // 3. Copy the COMBINED bounding box to the screen (fb_mem)
     copy_box_to_fb(min_x, min_y, bw, bh);
     
+    // 4. Restore the clean pixels back to back_buffer
     for (int y = 0; y < cursor_h; y++) {
         int py = new_y + y;
         if (py >= 0 && py < screen_h) {
@@ -1130,6 +1113,8 @@ void update_cursor_atomic_combined(int new_x, int new_y) {
             }
         }
     }
+    
+    // 5. Update state
     last_cursor_x = new_x;
     last_cursor_y = new_y;
     cursor_visible = true;
@@ -1150,17 +1135,17 @@ void compositor_composite(void) {
         render_h = dirty_h;
     }
 
-    // Fill background solid desktop background color
+    // Fill background solid Catppuccin color
     if (partial_render) {
         for (int y = render_y; y < render_y + render_h; y++) {
             uint32_t *row = &back_buffer[y * screen_w];
             for (int x = render_x; x < render_x + render_w; x++) {
-                row[x] = desktop_bg;
+                row[x] = 0xFF1E1E2E;
             }
         }
     } else {
         for (int i = 0; i < screen_w * screen_h; i++) {
-            back_buffer[i] = desktop_bg;
+            back_buffer[i] = 0xFF1E1E2E;
         }
     }
 
@@ -1186,15 +1171,18 @@ void compositor_composite(void) {
 
                 // Render titlebar if NORMAL or FLOATING window
                 if (has_decorations) {
+                    // 1. Draw flat content border outline below the titlebar
                     ui_draw_panel(back_buffer, screen_w, screen_h, 
                                   curr->x - BORDER_WIDTH, curr->y,
                                   curr->w + BORDER_WIDTH * 2, curr->h + BORDER_WIDTH,
-                                  desktop_bg, border_color, 0);
+                                  0xFF1E1E2E, border_color, 0);
 
+                    // 2. Draw inner content area dark background
                     ui_draw_panel(back_buffer, screen_w, screen_h,
                                   curr->x, curr->y, curr->w, curr->h,
-                                  desktop_bg, 0, 0);
+                                  0xFF1E1E2E, 0, 0);
 
+                    // 3. Draw rounded titlebar panel with vertical gradient
                     draw_gradient_titlebar(back_buffer, screen_w, screen_h,
                                            curr->x - BORDER_WIDTH, curr->y - TITLEBAR_HEIGHT - BORDER_WIDTH,
                                            curr->w + BORDER_WIDTH * 2, TITLEBAR_HEIGHT + BORDER_WIDTH,
@@ -1206,8 +1194,10 @@ void compositor_composite(void) {
                     // Draw titlebar header string text
                     ui_draw_string(back_buffer, screen_w, screen_h, curr->x + 10, curr->y - 20, curr->title, 0xFFFFFFFF);
 
+                    // Render control buttons on the right side using clean Windows-style icons
                     uint32_t btn_color = curr->focused ? 0xFFFFFFFF : 0xFF7F849C;
 
+                    // A. Minimize: flat horizontal line at the bottom
                     int min_bx = curr->x + curr->w - 38;
                     int min_by = curr->y - 20;
                     for (int iy = 8; iy <= 9; iy++) {
@@ -1220,6 +1210,7 @@ void compositor_composite(void) {
                         }
                     }
 
+                    // B. Close: pixel-perfect diagonal cross (X)
                     int cls_bx = curr->x + curr->w - 20;
                     int cls_by = curr->y - 20;
                     for (int i = 0; i <= 7; i++) {
@@ -1248,6 +1239,7 @@ void compositor_composite(void) {
         }
     }
 
+    // 1. Save clean pixels under the new cursor from back_buffer
     int cursor_w = 12;
     int cursor_h = 19;
     uint32_t saved_pixels[12 * 19];
@@ -1259,13 +1251,15 @@ void compositor_composite(void) {
             if (bb_row && px >= 0 && px < screen_w) {
                 saved_pixels[y * cursor_w + x] = bb_row[px];
             } else {
-                saved_pixels[y * cursor_w + x] = desktop_bg;
+                saved_pixels[y * cursor_w + x] = 0xFF1E1E2E;
             }
         }
     }
 
+    // 2. Draw the cursor onto the back_buffer temporarily
     draw_cursor(back_buffer, screen_w, screen_h, mx, my);
 
+    // 3. Expand dirty rect if it exists to cover the old cursor and new cursor
     if (has_dirty_rect) {
         int min_x = dirty_x;
         int min_y = dirty_y;
@@ -1295,7 +1289,7 @@ void compositor_composite(void) {
         dirty_h = max_y - min_y;
     }
 
-    // Blit backbuffer directly to hardware framebuffer mapped address space
+    // 4. Blit backbuffer directly to hardware framebuffer mapped address space
     if (has_dirty_rect) {
         copy_box_to_fb(dirty_x, dirty_y, dirty_w, dirty_h);
         has_dirty_rect = false; // Reset
@@ -1305,7 +1299,7 @@ void compositor_composite(void) {
         }
     }
 
-    // Restore the clean pixels back to back_buffer
+    // 5. Restore the clean pixels back to back_buffer
     for (int y = 0; y < cursor_h; y++) {
         int py = my + y;
         if (py >= 0 && py < screen_h) {
@@ -1319,7 +1313,7 @@ void compositor_composite(void) {
         }
     }
 
-    // Update state
+    // 6. Update state
     last_cursor_x = mx;
     last_cursor_y = my;
     cursor_visible = true;
@@ -1330,7 +1324,7 @@ void handle_client_message(int fd, surface_t **surf_ptr) {
     NovaFrameHeader header;
     uint8_t buffer[1024];
 
-    if (recv_all(fd, &header, sizeof(header)) < 0) {
+    if (recv(fd, &header, sizeof(header), 0) != sizeof(header)) {
         return;
     }
 
@@ -1342,8 +1336,11 @@ void handle_client_message(int fd, surface_t **surf_ptr) {
         uint32_t to_read = header.payload_size;
         if (to_read > sizeof(buffer)) to_read = sizeof(buffer);
         
-        if (recv_all(fd, buffer, to_read) < 0) {
-            return;
+        uint32_t read_bytes = 0;
+        while (read_bytes < to_read) {
+            ssize_t rc = recv(fd, (char*)buffer + read_bytes, to_read - read_bytes, 0);
+            if (rc <= 0) return;
+            read_bytes += rc;
         }
     }
 
@@ -1391,6 +1388,7 @@ void handle_client_message(int fd, surface_t **surf_ptr) {
                 close(shm_fd);
             }
 
+            // Window decoration rules (Normal windows are centered, overlaid layers at 0,0)
             if (surf->layer == 1 || surf->layer == 2) {
                 surf->x = (screen_w - (int)surf->w) / 2;
                 surf->y = (screen_h - (int)surf->h) / 2;
@@ -1589,11 +1587,6 @@ void handle_client_message(int fd, surface_t **surf_ptr) {
             break;
         }
 
-        case MSG_QUIT: {
-            quit_loop = true;
-            break;
-        }
-
         case MSG_QUERY_WINDOWS: {
             surface_t *c = surface_head;
             while (c) {
@@ -1729,6 +1722,7 @@ int main(int argc, char *argv[]) {
     mx = screen_w / 2;
     my = screen_h / 2;
 
+    // Autostart shell elements (Shelf, Topbar, Launch list)
     for (int i = 0; i < autostart_count; i++) {
         spawn_autostart(i);
     }
@@ -1737,6 +1731,7 @@ int main(int argc, char *argv[]) {
     struct pollfd poll_fds[128];
     surface_t *client_surfaces[128]; // Map client fd index to surface
 
+    bool quit_loop = false;
     bool e0_prefix = false;
     uint8_t mouse_buf[4];
     int mouse_idx = 0;
@@ -1900,7 +1895,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                // Mouse event
+                // 1. Mouse event
                 else if (poll_fds[i].fd == mouse_fd) {
                     uint8_t b;
                     while (read(mouse_fd, &b, 1) == 1) {
@@ -2067,7 +2062,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                // Self-pipe signal event
+                // 2. Self-pipe signal event
                 else if (poll_fds[i].fd == sig_pipe[0]) {
                     uint8_t sig;
                     if (read(sig_pipe[0], &sig, 1) == 1) {
@@ -2086,7 +2081,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
 
-                // New socket client connecting
+                // 3. New socket client connecting
                 else if (poll_fds[i].fd == server_fd) {
                     int client_fd = accept(server_fd, NULL, NULL);
                     if (client_fd >= 0) {
@@ -2261,8 +2256,14 @@ int main(int argc, char *argv[]) {
         // Periodic rendering if cursor moved or window states changed
         if (needs_composite) {
             compositor_composite();
+            if (has_dirty_rect) {
+                present_framebuffer(dirty_x, dirty_y, dirty_w, dirty_h);
+            } else {
+                present_framebuffer(0, 0, screen_w, screen_h);
+            }
         } else if (needs_cursor_only) {
             update_cursor_atomic_combined(mx, my);
+            present_framebuffer(0, 0, screen_w, screen_h);
         }
     }
 
