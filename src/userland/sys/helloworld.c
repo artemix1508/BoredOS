@@ -67,6 +67,11 @@ int main(int argc, char *argv[]) {
 
     ThemeConfig theme;
     theme_load("/etc/nova/nova.conf", &theme);
+    if (ui_font_init(theme.font_path, theme.font_size) < 0) {
+        fprintf(stderr, "HelloWorld Error: Failed to initialize UI font %s\n", theme.font_path);
+        return 1;
+    }
+
     int fd = nova_connect(NULL);
     uint32_t current_w = 300;
     uint32_t current_h = 200;
