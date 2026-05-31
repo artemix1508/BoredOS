@@ -12,7 +12,7 @@ XORRISO = xorriso
 SRC_DIR = src
 BUILD_DIR = build
 ISO_DIR = iso_root
-
+FONT_SRC := external/bfonts/fonts
 KERNEL_ELF = $(BUILD_DIR)/boredos.elf
 ISO_IMAGE = boredos.iso
 
@@ -225,7 +225,7 @@ $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland
 	@cp -r branding/* $(BUILD_DIR)/initrd/Library/images/branding/
 
 	@printf "$(YELLOW)[COPY]$(RESET) Fonts...\n"
-	@for f in $(SRC_DIR)/fonts/*.ttf; do \
+	@for f in $(FONT_SRC)/*.ttf; do \
 		if [ -f "$$f" ]; then \
 			printf "  -> $$f\n"; \
 			cp "$$f" $(BUILD_DIR)/initrd/Library/Fonts/; \
@@ -233,7 +233,7 @@ $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland
 	done
 
 	@printf "$(YELLOW)[COPY]$(RESET) Emoji fonts...\n"
-	@for f in $(SRC_DIR)/fonts/Emoji/*.ttf; do \
+	@for f in $(FONT_SRC)/Emoji/*.ttf; do \
 		if [ -f "$$f" ]; then \
 			printf "  -> $$f\n"; \
 			cp "$$f" $(BUILD_DIR)/initrd/Library/Fonts/Emoji/; \
