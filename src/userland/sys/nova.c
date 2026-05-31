@@ -2256,14 +2256,8 @@ int main(int argc, char *argv[]) {
         // Periodic rendering if cursor moved or window states changed
         if (needs_composite) {
             compositor_composite();
-            if (has_dirty_rect) {
-                present_framebuffer(dirty_x, dirty_y, dirty_w, dirty_h);
-            } else {
-                present_framebuffer(0, 0, screen_w, screen_h);
-            }
         } else if (needs_cursor_only) {
             update_cursor_atomic_combined(mx, my);
-            present_framebuffer(0, 0, screen_w, screen_h);
         }
     }
 
