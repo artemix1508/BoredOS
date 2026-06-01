@@ -147,8 +147,11 @@ static void draw_table_flip(int cx, int cy, int block) {
     }
 }
 
+volatile bool g_in_panic = false;
+
 void kernel_panic(registers_t *regs, const char *error_name) {
     asm volatile("cli");
+    g_in_panic = true;
 
     uint64_t cr0, cr2, cr3, cr4;
     asm volatile("mov %%cr0, %0" : "=r"(cr0));

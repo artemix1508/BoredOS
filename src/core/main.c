@@ -564,8 +564,6 @@ void kmain(void) {
     serial_write("[INIT] Stack Alignment: 0x");
     serial_write_hex(current_rsp);
     serial_write("\n");
-
-    graphics_init_fonts();
     ps2_init();
     asm("sti");  // Enable interrupts 
     keymap_init();
