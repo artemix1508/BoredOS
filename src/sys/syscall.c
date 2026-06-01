@@ -1395,11 +1395,7 @@ static uint64_t fs_cmd_poll(const syscall_args_t *args) {
   return (uint64_t)-2;
 }
 
-static uint64_t fs_cmd_select(const syscall_args_t *args) {
-  // Stub for now, could be implemented using poll logic
-  (void)args;
-  return 0;
-}
+
 
 static uint64_t fs_cmd_ioctl(const syscall_args_t *args) {
   int fd = (int)args->arg2;
@@ -1446,7 +1442,6 @@ static const syscall_handler_fn fs_cmd_table[FS_CMD_TABLE_SIZE] = {
     [FS_CMD_MOUNT_COUNT] = fs_cmd_mount_count, // 20
     [FS_CMD_MOUNT_INFO] = fs_cmd_mount_info,   // 21
     [FS_CMD_POLL] = fs_cmd_poll,               // 22
-    [FS_CMD_SELECT] = fs_cmd_select,           // 23
     [FS_CMD_IOCTL] = fs_cmd_ioctl,             // 24
     [FS_CMD_UNIX_SOCKET_CREATE] = fs_cmd_unix_socket_create,
     [FS_CMD_UNIX_SOCKET_BIND] = fs_cmd_unix_socket_bind,
@@ -1456,73 +1451,6 @@ static const syscall_handler_fn fs_cmd_table[FS_CMD_TABLE_SIZE] = {
     [FS_CMD_UNIX_SOCKET_CLOSE] = fs_cmd_unix_socket_close,
     [FS_CMD_UNIX_SOCKET_UNLINK] = fs_cmd_unix_socket_unlink,
 };
-
-static uint64_t sys_cmd_set_bg_color(const syscall_args_t *args) {
-  uint32_t color = (uint32_t)args->arg2;
-  extern void graphics_set_bg_color(uint32_t color);
-  graphics_set_bg_color(color);
-  return 0;
-}
-
-static uint64_t sys_cmd_set_bg_pattern(const syscall_args_t *args) {
-  uint32_t *user_pat = (uint32_t *)args->arg2;
-  if (!user_pat) {
-    graphics_set_bg_pattern(NULL);
-  } else {
-    static uint32_t global_bg_pattern[128 * 128];
-    for (int i = 0; i < 128 * 128; i++) {
-      global_bg_pattern[i] = user_pat[i];
-    }
-    graphics_set_bg_pattern(global_bg_pattern);
-  }
-  return 0;
-}
-
-static uint64_t sys_cmd_set_wallpaper(const syscall_args_t *args) {
-  (void)args;
-  return -1;
-}
-
-static uint64_t sys_cmd_set_desktop_prop(const syscall_args_t *args) {
-  (void)args;
-  return 0;
-}
-
-static uint64_t sys_cmd_set_mouse_speed(const syscall_args_t *args) {
-  (void)args;
-  return 0;
-}
-
-static uint64_t sys_cmd_set_mouse_cursor_scale(const syscall_args_t *args) {
-  (void)args;
-  return 0;
-}
-
-static uint64_t sys_cmd_network_init(const syscall_args_t *args) {
-  (void)args;
-  extern int network_init(void);
-  return network_init();
-}
-
-static uint64_t sys_cmd_get_desktop_prop(const syscall_args_t *args) {
-  (void)args;
-  return 0;
-}
-
-static uint64_t sys_cmd_get_mouse_speed(const syscall_args_t *args) {
-  (void)args;
-  return 10; // Default speed
-}
-
-static uint64_t sys_cmd_get_mouse_cursor_scale(const syscall_args_t *args) {
-  (void)args;
-  return 10; // Default 1.0x
-}
-
-static uint64_t sys_cmd_get_wallpaper_thumb(const syscall_args_t *args) {
-  (void)args;
-  return -1;
-}
 
 static uint64_t sys_cmd_clear_screen(const syscall_args_t *args) {
   (void)args;
@@ -1606,33 +1534,6 @@ static uint64_t sys_cmd_pci_list(const syscall_args_t *args) {
   }
   return -1;
 }
-
-static uint64_t sys_cmd_network_dhcp(const syscall_args_t *args) {
-  (void)args;
-  return network_dhcp_acquire();
-}
-
-static uint64_t sys_cmd_network_get_mac(const syscall_args_t *args) {
-  mac_address_t *mac = (mac_address_t *)args->arg2;
-  if (!mac)
-    return -1;
-  return network_get_mac_address(mac);
-}
-
-static uint64_t sys_cmd_network_get_ip(const syscall_args_t *args) {
-  ipv4_address_t *ip = (ipv4_address_t *)args->arg2;
-  if (!ip)
-    return -1;
-  return network_get_ipv4_address(ip);
-}
-
-static uint64_t sys_cmd_network_set_ip(const syscall_args_t *args) {
-  ipv4_address_t *ip = (ipv4_address_t *)args->arg2;
-  if (!ip)
-    return -1;
-  return network_set_ipv4_address(ip);
-}
-
 static uint64_t sys_cmd_udp_send(const syscall_args_t *args) {
   ipv4_address_t *dest_ip = (ipv4_address_t *)args->arg2;
   uint32_t ports = (uint32_t)args->arg3;
@@ -1644,41 +1545,6 @@ static uint64_t sys_cmd_udp_send(const syscall_args_t *args) {
     return -1;
   return udp_send_packet(dest_ip, dest_port, src_port, data, data_len);
 }
-
-static uint64_t sys_cmd_network_get_stats(const syscall_args_t *args) {
-  int stat_type = (int)args->arg2;
-  switch (stat_type) {
-  case 0:
-    return network_get_frames_received();
-  case 1:
-    return network_get_udp_packets_received();
-  case 2:
-    return network_get_frames_sent();
-  case 3:
-    return network_get_e1000_receive_calls();
-  case 4:
-    return network_get_e1000_receive_empty();
-  case 5:
-    return network_get_process_calls();
-  default:
-    return -1;
-  }
-}
-
-static uint64_t sys_cmd_network_get_gateway(const syscall_args_t *args) {
-  ipv4_address_t *ip = (ipv4_address_t *)args->arg2;
-  if (!ip)
-    return -1;
-  return network_get_gateway_ip(ip);
-}
-
-static uint64_t sys_cmd_network_get_dns(const syscall_args_t *args) {
-  ipv4_address_t *ip = (ipv4_address_t *)args->arg2;
-  if (!ip)
-    return -1;
-  return network_get_dns_ip(ip);
-}
-
 static uint64_t sys_cmd_icmp_ping(const syscall_args_t *args) {
   ipv4_address_t *dest_ip = (ipv4_address_t *)args->arg2;
   if (!dest_ip)
@@ -1686,19 +1552,6 @@ static uint64_t sys_cmd_icmp_ping(const syscall_args_t *args) {
   extern int network_icmp_single_ping(ipv4_address_t * dest);
   return (uint64_t)network_icmp_single_ping(dest_ip);
 }
-
-static uint64_t sys_cmd_network_is_init(const syscall_args_t *args) {
-  (void)args;
-  return network_is_initialized() ? 1 : 0;
-}
-
-static uint64_t sys_cmd_get_shell_config(const syscall_args_t *args) {
-  const char *key = (const char *)args->arg2;
-  if (!key)
-    return -1;
-  return cmd_get_config_value(key);
-}
-
 static uint64_t sys_cmd_set_text_color(const syscall_args_t *args) {
   process_t *proc = process_get_current();
   uint32_t color = (uint32_t)args->arg2;
@@ -1735,29 +1588,6 @@ static uint64_t sys_cmd_set_text_color(const syscall_args_t *args) {
     return 0;
   }
   cmd_set_current_color(color);
-  return 0;
-}
-
-static uint64_t sys_cmd_network_has_ip(const syscall_args_t *args) {
-  (void)args;
-  return network_has_ip() ? 1 : 0;
-}
-
-static uint64_t sys_cmd_set_wallpaper_path(const syscall_args_t *args) {
-  const char *user_path = (const char *)args->arg2;
-  if (!user_path)
-    return -1;
-
-  // Copy path safely to kernel buffer
-  char kernel_path[256];
-  int i = 0;
-  while (i < 255 && user_path[i]) {
-    kernel_path[i] = user_path[i];
-    i++;
-  }
-  kernel_path[i] = 0;
-
-  (void)kernel_path;
   return 0;
 }
 
@@ -1811,12 +1641,6 @@ static uint64_t sys_cmd_dns_lookup(const syscall_args_t *args) {
   return (uint64_t)network_dns_lookup(name_buf, out_ip);
 }
 
-static uint64_t sys_cmd_set_dns(const syscall_args_t *args) {
-  ipv4_address_t *ip = (ipv4_address_t *)args->arg2;
-  extern int network_set_dns_server(const ipv4_address_t *ip);
-  return (uint64_t)network_set_dns_server(ip);
-}
-
 static uint64_t sys_cmd_net_unlock(const syscall_args_t *args) {
   (void)args;
   extern void network_force_unlock(void);
@@ -1824,20 +1648,6 @@ static uint64_t sys_cmd_net_unlock(const syscall_args_t *args) {
   return 0;
 }
 
-static uint64_t sys_cmd_set_font(const syscall_args_t *args) {
-  const char *user_path = (const char *)args->arg2;
-  if (!user_path)
-    return -1;
-  // Copy font path from userland
-  char path[128];
-  int i;
-  for (i = 0; i < 127 && user_path[i]; i++) {
-    path[i] = user_path[i];
-  }
-  path[i] = 0;
-  graphics_set_font(path);
-  return 0;
-}
 
 static uint64_t sys_cmd_set_raw_mode(const syscall_args_t *args) {
   extern void cmd_set_raw_mode(bool enabled);
@@ -1862,49 +1672,6 @@ static uint64_t sys_cmd_tcp_accept(const syscall_args_t *args) {
   (void)args;
   extern int network_tcp_accept(void);
   return (uint64_t)network_tcp_accept();
-}
-
-static uint64_t sys_cmd_set_resolution(const syscall_args_t *args) {
-  uint16_t req_w = (uint16_t)args->arg2;
-  uint16_t req_h = (uint16_t)args->arg3;
-  uint16_t req_bpp = (uint16_t)args->arg4;
-  int req_color_mode = (int)args->arg5;
-
-  extern bool vga_set_mode(uint16_t width, uint16_t height, uint16_t bpp,
-                           void **out_framebuffer);
-  extern void graphics_update_resolution(int width, int height, int bpp,
-                                         void *fb_addr, int color_mode);
-  extern void vga_set_palette_grayscale(void);
-  extern void vga_set_palette_standard(void);
-
-  void *new_fb = NULL;
-  if (vga_set_mode(req_w, req_h, req_bpp, &new_fb)) {
-    if (req_color_mode == 1 || req_color_mode == 2) {
-      vga_set_palette_grayscale();
-    } else if (req_bpp <= 8) {
-      vga_set_palette_standard();
-    }
-    graphics_update_resolution(req_w, req_h, req_bpp, new_fb, req_color_mode);
-    return 0;
-  }
-  return -1;
-}
-
-static uint64_t sys_cmd_network_get_nic_name(const syscall_args_t *args) {
-  char *user_buf = (char *)args->arg2;
-  if (!user_buf)
-    return -1;
-  char name_buf[64];
-  extern int network_get_nic_name(char *name_out);
-  if (network_get_nic_name(name_buf) == 0) {
-    size_t len = 0;
-    while (name_buf[len] && len < 63)
-      len++;
-    name_buf[len] = 0;
-    memcpy(user_buf, name_buf, len + 1);
-    return 0;
-  }
-  return -1;
 }
 
 static uint64_t sys_cmd_parallel_run(const syscall_args_t *args) {
@@ -2536,15 +2303,6 @@ static uint64_t sys_cmd_disk_replace_kernel(const syscall_args_t *args) {
 
 #define SYS_CMD_TABLE_SIZE 110
 static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
-    [SYSTEM_CMD_SET_BG_COLOR] = sys_cmd_set_bg_color,
-    [SYSTEM_CMD_SET_BG_PATTERN] = sys_cmd_set_bg_pattern,
-    [SYSTEM_CMD_SET_WALLPAPER] = sys_cmd_set_wallpaper,
-    [SYSTEM_CMD_SET_DESKTOP_PROP] = sys_cmd_set_desktop_prop,
-    [SYSTEM_CMD_SET_MOUSE_SPEED] = sys_cmd_set_mouse_speed,
-    [SYSTEM_CMD_NETWORK_INIT] = sys_cmd_network_init,
-    [SYSTEM_CMD_GET_DESKTOP_PROP] = sys_cmd_get_desktop_prop,
-    [SYSTEM_CMD_GET_MOUSE_SPEED] = sys_cmd_get_mouse_speed,
-    [SYSTEM_CMD_GET_WALLPAPER_THUMB] = sys_cmd_get_wallpaper_thumb,
     [SYSTEM_CMD_CLEAR_SCREEN] = sys_cmd_clear_screen,
     [SYSTEM_CMD_RTC_GET] = sys_cmd_rtc_get,
     [SYSTEM_CMD_REBOOT] = sys_cmd_reboot,
@@ -2553,40 +2311,23 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
     [SYSTEM_CMD_GET_MEM_INFO] = sys_cmd_get_mem_info,
     [SYSTEM_CMD_GET_TICKS] = sys_cmd_get_ticks,
     [SYSTEM_CMD_PCI_LIST] = sys_cmd_pci_list,
-    [SYSTEM_CMD_NETWORK_DHCP] = sys_cmd_network_dhcp,
-    [SYSTEM_CMD_NETWORK_GET_MAC] = sys_cmd_network_get_mac,
-    [SYSTEM_CMD_NETWORK_GET_IP] = sys_cmd_network_get_ip,
-    [SYSTEM_CMD_NETWORK_SET_IP] = sys_cmd_network_set_ip,
     [SYSTEM_CMD_UDP_SEND] = sys_cmd_udp_send,
-    [SYSTEM_CMD_NETWORK_GET_STATS] = sys_cmd_network_get_stats,
-    [SYSTEM_CMD_NETWORK_GET_GATEWAY] = sys_cmd_network_get_gateway,
-    [SYSTEM_CMD_NETWORK_GET_DNS] = sys_cmd_network_get_dns,
     [SYSTEM_CMD_ICMP_PING] = sys_cmd_icmp_ping,
-    [SYSTEM_CMD_NETWORK_IS_INIT] = sys_cmd_network_is_init,
-    [SYSTEM_CMD_GET_SHELL_CONFIG] = sys_cmd_get_shell_config,
     [SYSTEM_CMD_SET_TEXT_COLOR] = sys_cmd_set_text_color,
-    [SYSTEM_CMD_NETWORK_HAS_IP] = sys_cmd_network_has_ip,
-    [SYSTEM_CMD_SET_WALLPAPER_PATH] = sys_cmd_set_wallpaper_path,
     [SYSTEM_CMD_RTC_SET] = sys_cmd_rtc_set,
     [SYSTEM_CMD_TCP_CONNECT] = sys_cmd_tcp_connect,
     [SYSTEM_CMD_TCP_SEND] = sys_cmd_tcp_send,
     [SYSTEM_CMD_TCP_RECV] = sys_cmd_tcp_recv,
     [SYSTEM_CMD_TCP_CLOSE] = sys_cmd_tcp_close,
     [SYSTEM_CMD_DNS_LOOKUP] = sys_cmd_dns_lookup,
-    [SYSTEM_CMD_SET_DNS] = sys_cmd_set_dns,
     [SYSTEM_CMD_NET_UNLOCK] = sys_cmd_net_unlock,
-    [SYSTEM_CMD_SET_FONT] = sys_cmd_set_font,
     [SYSTEM_CMD_SET_RAW_MODE] = sys_cmd_set_raw_mode,
     [SYSTEM_CMD_TCP_RECV_NB] = sys_cmd_tcp_recv_nb,
     [SYSTEM_CMD_TCP_LISTEN] = sys_cmd_tcp_listen,
     [SYSTEM_CMD_TCP_ACCEPT] = sys_cmd_tcp_accept,
-    [SYSTEM_CMD_SET_RESOLUTION] = sys_cmd_set_resolution,
-    [SYSTEM_CMD_NETWORK_GET_NIC_NAME] = sys_cmd_network_get_nic_name,
     [SYSTEM_CMD_PARALLEL_RUN] = sys_cmd_parallel_run,
     [SYSTEM_CMD_SET_KEYBOARD_LAYOUT] = sys_cmd_set_keyboard_layout,
     [SYSTEM_CMD_GET_KEYBOARD_LAYOUT] = sys_cmd_get_keyboard_layout,
-    [SYSTEM_CMD_SET_MOUSE_CURSOR_SCALE] = sys_cmd_set_mouse_cursor_scale,
-    [SYSTEM_CMD_GET_MOUSE_CURSOR_SCALE] = sys_cmd_get_mouse_cursor_scale,
     [SYSTEM_CMD_TTY_CREATE] = sys_cmd_tty_create,
     [SYSTEM_CMD_TTY_READ_OUT] = sys_cmd_tty_read_out,
     [SYSTEM_CMD_TTY_WRITE_IN] = sys_cmd_tty_write_in,

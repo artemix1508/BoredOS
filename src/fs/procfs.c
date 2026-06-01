@@ -5,6 +5,7 @@
 #include "memory_manager.h"
 #include "core/kutils.h"
 #include "core/platform.h"
+#include "../core/version.h"
 
 typedef struct {
     uint32_t pid;
@@ -62,7 +63,6 @@ int procfs_read(void *fs_private, void *handle, void *buf, int size) {
 
     if (h->pid == 0xFFFFFFFF) {
         if (strcmp(h->type, "version") == 0) {
-            extern void get_os_info(os_info_t *info);
             os_info_t info;
             get_os_info(&info);
             strcpy(out, info.os_name);

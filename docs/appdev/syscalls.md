@@ -52,34 +52,16 @@ Notes:
 | 22 | `FS_CMD_POLL` | Wait for events on multiple fds |
 | 23 | `FS_CMD_SELECT` | Multiplexed I/O (stub/alias) |
 
-## GUI Command IDs (`SYS_GUI`)
-
-> [!NOTE]
-> The `SYS_GUI` syscall multiplexer is defunct in this branch as the legacy Window Manager has been removed in favor of modular TTY consoles and direct framebuffer (`/dev/fb0`) access.
-
 ## SYSTEM Command IDs (`SYS_SYSTEM`)
 
 ### Desktop and display
 
 | ID | Macro | Meaning |
 |---|---|---|
-| 1 | `SYSTEM_CMD_SET_BG_COLOR` | Set desktop background color |
-| 2 | `SYSTEM_CMD_SET_BG_PATTERN` | Set desktop background pattern |
-| 3 | `SYSTEM_CMD_SET_WALLPAPER` | Legacy wallpaper command slot |
-| 4 | `SYSTEM_CMD_SET_DESKTOP_PROP` | Set desktop behavior property |
-| 5 | `SYSTEM_CMD_SET_MOUSE_SPEED` | Set mouse speed |
-| 7 | `SYSTEM_CMD_GET_DESKTOP_PROP` | Get desktop property |
-| 8 | `SYSTEM_CMD_GET_MOUSE_SPEED` | Get mouse speed |
-| 9 | `SYSTEM_CMD_GET_WALLPAPER_THUMB` | Legacy wallpaper thumb slot |
 | 10 | `SYSTEM_CMD_CLEAR_SCREEN` | Clear text console |
 | 29 | `SYSTEM_CMD_SET_TEXT_COLOR` | Set console text color |
-| 31 | `SYSTEM_CMD_SET_WALLPAPER_PATH` | Set wallpaper from path |
-| 40 | `SYSTEM_CMD_SET_FONT` | Set active font |
-| 47 | `SYSTEM_CMD_SET_RESOLUTION` | Set display mode |
 | 49 | `SYSTEM_CMD_SET_KEYBOARD_LAYOUT` | Set active keyboard layout ID |
 | 51 | `SYSTEM_CMD_GET_KEYBOARD_LAYOUT` | Get current keyboard layout ID |
-| 52 | `SYSTEM_GET_CURSOR_SCALE` | Get the current BoredWM cursor scale |
-| 53 | `SYSTEM_SET_CURSOR_SCALE` | Set the BoredWM cursor scale |
 
 ### Time, power, and system state
 
@@ -90,39 +72,13 @@ Notes:
 | 13 | `SYSTEM_CMD_SHUTDOWN` | Power off machine |
 | 14 | `SYSTEM_CMD_BEEP` | PC speaker beep |
 | 15 | `SYSTEM_CMD_GET_MEM_INFO` | Return total/used memory |
-| 16 | `SYSTEM_CMD_GET_TICKS` | Return scheduler/WM tick count |
-| 28 | `SYSTEM_CMD_GET_SHELL_CONFIG` | Read shell config value |
+| 16 | `SYSTEM_CMD_GET_TICKS` | Return scheduler tick count |
 | 32 | `SYSTEM_CMD_RTC_SET` | Set RTC datetime |
 | 41 | `SYSTEM_CMD_SET_RAW_MODE` | Terminal raw-mode control |
-| 43 | `SYSTEM_CMD_YIELD` | Yield scheduler timeslice (Not recommended for idle loops) |
-| 46 | `SYSTEM_CMD_SLEEP` | Sleep current process (Recommended for throttling) |
+| 43 | `SYSTEM_CMD_YIELD` | Yield scheduler timeslice |
+| 46 | `SYSTEM_CMD_SLEEP` | Sleep current process |
 
-### Network
 
-| ID | Macro | Meaning |
-|---|---|---|
-| 6 | `SYSTEM_CMD_NETWORK_INIT` | Init networking |
-| 17 | `SYSTEM_CMD_PCI_LIST` | PCI device list access |
-| 18 | `SYSTEM_CMD_NETWORK_DHCP` | DHCP acquire |
-| 19 | `SYSTEM_CMD_NETWORK_GET_MAC` | Read NIC MAC |
-| 20 | `SYSTEM_CMD_NETWORK_GET_IP` | Read IPv4 |
-| 21 | `SYSTEM_CMD_NETWORK_SET_IP` | Set static IPv4 |
-| 22 | `SYSTEM_CMD_UDP_SEND` | Send UDP packet |
-| 23 | `SYSTEM_CMD_NETWORK_GET_STATS` | Network stats |
-| 24 | `SYSTEM_CMD_NETWORK_GET_GATEWAY` | Read gateway |
-| 25 | `SYSTEM_CMD_NETWORK_GET_DNS` | Read DNS server |
-| 26 | `SYSTEM_CMD_ICMP_PING` | ICMP ping |
-| 27 | `SYSTEM_CMD_NETWORK_IS_INIT` | Network initialized flag |
-| 30 | `SYSTEM_CMD_NETWORK_HAS_IP` | Has IPv4 address flag |
-| 33 | `SYSTEM_CMD_TCP_CONNECT` | TCP connect |
-| 34 | `SYSTEM_CMD_TCP_SEND` | TCP send |
-| 35 | `SYSTEM_CMD_TCP_RECV` | TCP recv (blocking) |
-| 36 | `SYSTEM_CMD_TCP_CLOSE` | TCP close |
-| 37 | `SYSTEM_CMD_DNS_LOOKUP` | DNS lookup |
-| 38 | `SYSTEM_CMD_SET_DNS` | Set DNS server |
-| 39 | `SYSTEM_CMD_NET_UNLOCK` | Force net lock release |
-| 42 | `SYSTEM_CMD_TCP_RECV_NB` | TCP recv (non-blocking) |
-| 48 | `SYSTEM_CMD_NETWORK_GET_NIC_NAME` | NIC name |
 
 ### Process, tty, signals
 
