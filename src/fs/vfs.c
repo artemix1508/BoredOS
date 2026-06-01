@@ -587,8 +587,19 @@ int vfs_write(vfs_file_t *file, const void *buf, int size) {
             if ((uint64_t)size < to_write) to_write = size;
             
             memcpy((uint8_t*)fb.address + file->position, buf, to_write);
+            uint64_t start_pos = file->position;
+            uint64_t end_pos = file->position + to_write - 1;
+            int bytes_per_pixel = fb.bpp / 8;
+            int start_row = (int)(start_pos / fb.pitch);
+            int end_row = (int)(end_pos / fb.pitch);
+            if (start_row < 0) start_row = 0;
+            if (end_row >= (int)fb.height) end_row = fb.height - 1;
+            int dirty_h = end_row - start_row + 1;
+            if (dirty_h > 0) {
+                graphics_mark_dirty(0, start_row, fb.width, dirty_h);
+            }
+
             file->position += to_write;
-            graphics_present_framebuffer();
             return (int)to_write;
         } else if (file->device_type == DEVICE_TYPE_SHM) {
             typedef struct shm_segment shm_segment_t;
@@ -649,6 +660,7 @@ int vfs_ioctl(vfs_file_t *file, uint64_t request, void *arg) {
             #define FBIOPAN_DISPLAY     0x4604
             #define FBIOGETCMAP         0x4604
             #define FBIOPUTCMAP         0x4605
+            #define FBIOSET_DIRTY       0x4606
             
             vfs_framebuffer_info_t fb = graphics_get_fb_backing_params();
            /* 
@@ -787,6 +799,11 @@ int vfs_ioctl(vfs_file_t *file, uint64_t request, void *arg) {
                 return 0;
             } else if (request == FBIOPAN_DISPLAY) {
                 graphics_present_framebuffer();
+                return 0;
+            } else if (request == FBIOSET_DIRTY) {
+                if (!arg) return -1;
+                struct { int x; int y; int w; int h; } *r = (void *)arg;
+                graphics_mark_dirty(r->x, r->y, r->w, r->h);
                 return 0;
             } else if (request == FBIOPUT_VSCREENINFO) {
                 // Ignore changes as our FB is fixed by the bootloader, but report success

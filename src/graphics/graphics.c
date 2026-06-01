@@ -420,7 +420,98 @@ void graphics_copy_screenbuffer(uint32_t *dest) {
 
 void graphics_present_framebuffer(void) {
     if (!g_fb) return;
-    graphics_copy_screenbuffer((uint32_t *)g_fb->address);
+    uint64_t flags = spinlock_acquire_irqsave(&graphics_lock);
+    DirtyRect dr = g_dirty;
+    if (g_dirty.active) {
+        g_dirty.active = false;
+    }
+
+    int sx = 0, sy = 0, sw = (int)g_fb->width, sh = (int)g_fb->height;
+    if (dr.active) {
+        sx = dr.x;
+        sy = dr.y;
+        sw = dr.w;
+        sh = dr.h;
+        if (sx < 0) { sw += sx; sx = 0; }
+        if (sy < 0) { sh += sy; sy = 0; }
+        if (sx + sw > (int)g_fb->width) sw = g_fb->width - sx;
+        if (sy + sh > (int)g_fb->height) sh = g_fb->height - sy;
+        if (sw <= 0 || sh <= 0) {
+            spinlock_release_irqrestore(&graphics_lock, flags);
+            return;
+        }
+    }
+
+    int fb_w = (int)g_fb->width;
+    int fb_h = (int)g_fb->height;
+    int fb_bpp = (int)g_fb->bpp;
+    int fb_pitch = (int)g_fb->pitch;
+    void *fb_addr = g_fb->address;
+
+    if (fb_bpp == 32 && g_color_mode == 0) {
+        for (int row = sy; row < sy + sh; row++) {
+            uint32_t *src = &g_back_buffer[row * fb_w + sx];
+            uint8_t *dst_row = (uint8_t *)fb_addr + (uint64_t)row * fb_pitch + sx * 4;
+            memcpy(dst_row, src, (size_t)sw * 4);
+        }
+        spinlock_release_irqrestore(&graphics_lock, flags);
+        return;
+    }
+
+    for (int row = sy; row < sy + sh; row++) {
+        uint32_t *src_row = &g_back_buffer[row * fb_w + sx];
+
+        if (fb_bpp == 16) {
+            uint16_t *dst_row = (uint16_t *)((uint8_t *)fb_addr + (uint64_t)row * fb_pitch) + sx;
+            for (int x = 0; x < sw; x++) {
+                uint32_t c = src_row[x];
+                uint16_t r = ((c >> 16) & 0xFF) >> 3;
+                uint16_t g = ((c >> 8)  & 0xFF) >> 2;
+                uint16_t b = (c         & 0xFF) >> 3;
+                dst_row[x] = (r << 11) | (g << 5) | b;
+            }
+        } else if (fb_bpp == 8) {
+            uint8_t *dst_row = (uint8_t *)((uint8_t *)fb_addr + (uint64_t)row * fb_pitch) + sx;
+            if (g_color_mode == 1) {
+                for (int x = 0; x < sw; x++) {
+                    uint32_t c = src_row[x];
+                    uint8_t r = (c >> 16) & 0xFF;
+                    uint8_t g = (c >> 8) & 0xFF;
+                    uint8_t b = c & 0xFF;
+                    dst_row[x] = (uint8_t)((r * 77 + g * 150 + b * 29) >> 8);
+                }
+            } else if (g_color_mode == 2) {
+                static const uint8_t bayer2[2][2] = {
+                    {  0, 128 },
+                    {192,  64 }
+                };
+                for (int x = 0; x < sw; x++) {
+                    uint32_t c = src_row[x];
+                    uint8_t r = (c >> 16) & 0xFF;
+                    uint8_t g = (c >> 8) & 0xFF;
+                    uint8_t b = c & 0xFF;
+                    int gray = (r * 77 + g * 150 + b * 29) >> 8;
+                    gray = gray * 2;
+                    if (gray > 255) gray = 255;
+                    int sxp = sx + x;
+                    uint8_t threshold = bayer2[row & 1][sxp & 1];
+                    dst_row[x] = (gray > threshold) ? 255 : 0;
+                }
+            } else {
+                for (int x = 0; x < sw; x++) {
+                    uint32_t c = src_row[x];
+                    uint8_t r = ((c >> 16) & 0xFF) >> 5;
+                    uint8_t g = ((c >> 8) & 0xFF) >> 5;
+                    uint8_t b = (c & 0xFF) >> 6;
+                    dst_row[x] = (r << 5) | (g << 2) | b;
+                }
+            }
+        } else {
+            uint32_t *dst_row32 = (uint32_t *)((uint8_t *)fb_addr + (uint64_t)row * fb_pitch) + sx;
+            for (int x = 0; x < sw; x++) dst_row32[x] = src_row[x];
+        }
+    }
+    spinlock_release_irqrestore(&graphics_lock, flags);
 }
 
 void graphics_copy_buffer(uint32_t *src) {

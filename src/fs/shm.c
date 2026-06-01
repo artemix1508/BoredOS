@@ -116,9 +116,7 @@ int shm_allocate(shm_segment_t *seg, size_t size) {
             }
             
             // Zero out the page
-            for (int offset = 0; offset < 4096; offset++) {
-                ((char*)page)[offset] = 0;
-            }
+            memset(page, 0, 4096);
 
             seg->phys_pages[i] = v2p((uint64_t)page);
         }
