@@ -2771,9 +2771,36 @@ static uint64_t syscall_maybe_deliver_signal(registers_t *regs) {
     proc->signal_action_mask[sig] = 0;
     proc->signal_action_flags[sig] = 0;
   }
+  /* Validate handler is a user-space address and the user stack
+   * looks sane before writing into user memory. Reject/terminate
+   * the process if the handler or stack pointer is invalid to
+   * avoid corrupting kernel stack / descriptor frames. */
+  const uint64_t KERNEL_BASE = 0xFFFFFFFF80000000ULL;
+  if (handler == 1) {
+    return (uint64_t)regs;
+  }
+  /* Handler must be in user-space (not in kernel direct map). */
+  if (handler >= KERNEL_BASE) {
+    process_terminate_with_status(proc, 128 + 11); /* SIGSEGV */
+    return (uint64_t)regs;
+  }
 
   uint64_t new_rsp = regs->rsp - sizeof(uint64_t);
-  *((uint64_t *)new_rsp) = regs->rip;
+  if (new_rsp >= KERNEL_BASE) {
+    process_terminate_with_status(proc, 128 + 11); /* SIGSEGV */
+    return (uint64_t)regs;
+  }
+  /* Ensure the target user address is mapped in the process page tables
+   * and write to the underlying physical frame via p2v(). This avoids
+   * accidentally writing into kernel memory if regs->rsp was corrupted
+   * or pointed at an unmapped address. */
+  uint64_t phys = paging_virt2phys(proc->pml4_phys, new_rsp);
+  if (!phys) {
+    process_terminate_with_status(proc, 128 + 11); /* SIGSEGV */
+    return (uint64_t)regs;
+  }
+  uint64_t *target = (uint64_t *)p2v(phys);
+  *target = regs->rip;
   regs->rsp = new_rsp;
   regs->rip = handler;
   regs->rdi = (uint64_t)sig;
