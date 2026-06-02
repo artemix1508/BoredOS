@@ -14,7 +14,6 @@ BoredOS libc is a compact implementation focused on the APIs used by in-tree app
 | `unistd.h` | POSIX-like fd/process calls |
 | `fcntl.h` | open/fcntl flags, `dup`, `pipe` |
 | `poll.h` | event-driven I/O multiplexing |
-| `input.h` | keyboard keycode constants |
 | `signal.h` | signal handlers and masks |
 | `sys/stat.h` | `stat`/`fstat` and file mode bits |
 | `sys/types.h` | core typedefs (`pid_t`, `ssize_t`, ...) |
@@ -84,13 +83,7 @@ Functions:
 - `dup2`
 - `pipe`
 
-## input.h
 
-Defines keyboard/control keycode constants used by apps that process
-
-Current constants include:
-- Arrow keys: `KEY_UP`, `KEY_DOWN`, `KEY_LEFT`, `KEY_RIGHT`
-- Controls: `KEY_ENTER`, `KEY_BACKSPACE`, `KEY_ESCAPE`, `KEY_SPACE`, `KEY_ALT`, `KEY_CTRL_L`, `KEY_TAB`
 
 ## signal.h
 
