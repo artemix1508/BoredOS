@@ -269,6 +269,7 @@ pacman -S \
     git \
     wget \
     tar \
+    lz4 \
     xz
 ```
 
