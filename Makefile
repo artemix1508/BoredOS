@@ -134,6 +134,7 @@ userland: build/sdk
 	$(MAKE) -C external/tcc BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath build/userland/bin)
 	$(MAKE) -C external/netutils BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath build/userland/bin)
 	$(MAKE) -C external/doomgeneric BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath build/userland/bin)
+	$(MAKE) -C external/bpm BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath build/userland/bin)
 	@printf "$(GREEN)[OK]$(RESET) Userland build complete.\n"
 
 $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland
@@ -184,6 +185,7 @@ $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland
 	$(MAKE) -C external/tcc BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 	$(MAKE) -C external/netutils BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 	$(MAKE) -C external/doomgeneric BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
+	$(MAKE) -C external/bpm BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 
 	@printf "$(YELLOW)[COPY]$(RESET) Staging SDK development environment files in initrd...\n"
 	@cp build/sdk/lib/libc.a $(BUILD_DIR)/initrd/usr/lib/
