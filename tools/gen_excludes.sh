@@ -65,6 +65,10 @@ for bup in "$PACKAGES_DIR"/*.bup; do
             rel="${line_clean#config/}"
             [ -z "$rel" ] && continue
             echo "$CONFIG_DEST/$rel" >> "$EXCLUDES_FILE"
+        elif [[ "$line" == usr/share/applications/* ]]; then
+            rel="${line_clean#usr/share/applications/}"
+            [ -z "$rel" ] && continue
+            echo "/usr/share/applications/$rel" >> "$EXCLUDES_FILE"
         fi
     done
     
