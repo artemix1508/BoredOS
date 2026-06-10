@@ -116,6 +116,7 @@ typedef enum {
     SYSTEM_CMD_FORK = 80,
     SYSTEM_CMD_PTY_CREATE = 82,
     SYSTEM_CMD_PTY_DESTROY = 83
+    ,SYSTEM_CMD_GET_PID = 84
 } system_cmd_t;
 
 void syscall_init(void);

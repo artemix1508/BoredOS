@@ -128,6 +128,7 @@ typedef struct {
 typedef uint64_t (*syscall_handler_fn)(const syscall_args_t *args);
 
 static process_fd_pipe_t *fs_create_pipe_state(void);
+static uint64_t sys_cmd_get_pid(const syscall_args_t *args);
 static void fs_pipe_drop_reader(process_fd_pipe_t *pipe);
 static void fs_pipe_drop_writer(process_fd_pipe_t *pipe);
 static int fs_copy_unix_path(const void *addr, uint64_t addrlen, char *path_out,
@@ -1298,6 +1299,7 @@ void poll_cleanup(process_t *proc) {
 }
 
 static void poll_qproc(wait_queue_head_t *h, poll_table_t *pt) {
+  (void)pt;
   process_t *proc = process_get_current();
   poll_wtable_t *wt = &proc->poll_table;
   if (wt->count < MAX_POLL_ENTRIES) {
@@ -2402,7 +2404,15 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
     [SYSTEM_CMD_DISK_SYNC] = sys_cmd_disk_sync,
     [SYSTEM_CMD_PTY_CREATE] = sys_cmd_pty_create,
     [SYSTEM_CMD_PTY_DESTROY] = sys_cmd_pty_destroy,
+    [SYSTEM_CMD_GET_PID] = sys_cmd_get_pid,
 };
+
+static uint64_t sys_cmd_get_pid(const syscall_args_t *args) {
+  (void)args;
+  process_t *proc = process_get_current();
+  if (!proc) return (uint64_t)-1;
+  return (uint64_t)proc->pid;
+}
 
 static uint64_t handle_sys_write(const syscall_args_t *args) {
   extern void cmd_write_len(const char *str, size_t len);
