@@ -84,11 +84,13 @@ jobs:
           name: Nightly Build (${{ steps.metadata.outputs.short_sha }})
           body: |
             This is an automated nightly build of BoredOS, this is not a final release and may be unstable.
+            There will also never be a full release. This is simply meant for people to preview the OS. In
+            it's very latest state.
             Built from commit:
             - Full hash: `${{ github.sha }}`
             - Short hash: `${{ steps.metadata.outputs.short_sha }}`
-          prerelease: true
-          make_latest: false
+          prerelease: false
+          make_latest: true
           files: |
             boredos.iso
           overwrite_files: true
