@@ -193,6 +193,7 @@ $(BUILD_DIR)/initrd.tar: $(KERNEL_ELF) userland packages
 	$(MAKE) -C external/tcc BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 	$(MAKE) -C external/netutils BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 	$(MAKE) -C external/bpm BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
+	$(MAKE) -C external/number-guesser BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install
 	@for pkg in $(PACKAGES); do \
 		$(MAKE) -C external/$$pkg BOREDOS_SDK=$(abspath build/sdk) DESTDIR=$(abspath $(BUILD_DIR)/initrd) install || exit 1; \
 	done

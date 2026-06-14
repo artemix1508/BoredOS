@@ -24,6 +24,7 @@ bfonts|https://github.com/boredos/bfonts.git|main
 doomgeneric|https://github.com/boredos/doomgeneric.git|main
 bearssl|https://www.bearssl.org/git/BearSSL|master
 bpm|https://github.com/boredos/bpm.git|main
+number-guesser|https://github.com/artemix1508/NumberGuesser.git|main
 "
 
 LOCKDIR="build/fetch.lock"
