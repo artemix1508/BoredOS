@@ -108,7 +108,7 @@ void syscall_init(void) {
   uint64_t efer = rdmsr(MSR_EFER);
   efer |= 1;
   wrmsr(MSR_EFER, efer);
-  uint64_t star = ((uint64_t)0x001B << 48) | ((uint64_t)0x0008 << 32);
+  uint64_t star = ((uint64_t)0x0013 << 48) | ((uint64_t)0x0008 << 32);
   wrmsr(MSR_STAR, star);
   extern void syscall_entry(void);
   wrmsr(MSR_LSTAR, (uint64_t)syscall_entry);
@@ -128,6 +128,7 @@ typedef struct {
 typedef uint64_t (*syscall_handler_fn)(const syscall_args_t *args);
 
 static process_fd_pipe_t *fs_create_pipe_state(void);
+static uint64_t sys_cmd_get_pid(const syscall_args_t *args);
 static void fs_pipe_drop_reader(process_fd_pipe_t *pipe);
 static void fs_pipe_drop_writer(process_fd_pipe_t *pipe);
 static int fs_copy_unix_path(const void *addr, uint64_t addrlen, char *path_out,
@@ -1298,6 +1299,7 @@ void poll_cleanup(process_t *proc) {
 }
 
 static void poll_qproc(wait_queue_head_t *h, poll_table_t *pt) {
+  (void)pt;
   process_t *proc = process_get_current();
   poll_wtable_t *wt = &proc->poll_table;
   if (wt->count < MAX_POLL_ENTRIES) {
@@ -1524,14 +1526,7 @@ static uint64_t sys_cmd_shutdown(const syscall_args_t *args) {
   k_shutdown();
   return 0;
 }
-
-static uint64_t sys_cmd_beep(const syscall_args_t *args) {
-  int freq = (int)args->arg2;
-  int ms = (int)args->arg3;
-  extern void k_beep(int freq, int ms);
-  k_beep(freq, ms);
-  return 0;
-}
+ 
 
 static uint64_t sys_cmd_get_mem_info(const syscall_args_t *args) {
   uint64_t *out = (uint64_t *)args->arg2;
@@ -2356,7 +2351,6 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
     [SYSTEM_CMD_RTC_GET] = sys_cmd_rtc_get,
     [SYSTEM_CMD_REBOOT] = sys_cmd_reboot,
     [SYSTEM_CMD_SHUTDOWN] = sys_cmd_shutdown,
-    [SYSTEM_CMD_BEEP] = sys_cmd_beep,
     [SYSTEM_CMD_GET_MEM_INFO] = sys_cmd_get_mem_info,
     [SYSTEM_CMD_GET_TICKS] = sys_cmd_get_ticks,
     [SYSTEM_CMD_PCI_LIST] = sys_cmd_pci_list,
@@ -2410,7 +2404,15 @@ static const syscall_handler_fn sys_cmd_table[SYS_CMD_TABLE_SIZE] = {
     [SYSTEM_CMD_DISK_SYNC] = sys_cmd_disk_sync,
     [SYSTEM_CMD_PTY_CREATE] = sys_cmd_pty_create,
     [SYSTEM_CMD_PTY_DESTROY] = sys_cmd_pty_destroy,
+    [SYSTEM_CMD_GET_PID] = sys_cmd_get_pid,
 };
+
+static uint64_t sys_cmd_get_pid(const syscall_args_t *args) {
+  (void)args;
+  process_t *proc = process_get_current();
+  if (!proc) return (uint64_t)-1;
+  return (uint64_t)proc->pid;
+}
 
 static uint64_t handle_sys_write(const syscall_args_t *args) {
   extern void cmd_write_len(const char *str, size_t len);
@@ -2610,6 +2612,14 @@ static uint64_t handle_sys_mmap(const syscall_args_t *args) {
     // freeing backing pages while they are still mapped into userspace.
     shm_ref(seg);
 
+    // Track the SHM mapping in proc
+    if (proc->shm_mapping_count < 32) {
+      proc->shm_mappings[proc->shm_mapping_count].addr = virt_addr;
+      proc->shm_mappings[proc->shm_mapping_count].length = aligned_len;
+      proc->shm_mappings[proc->shm_mapping_count].seg = (void*)seg;
+      proc->shm_mapping_count++;
+    }
+
     // Map pages covering the requested length
     uint32_t pages_to_map = aligned_len / 4096;
     for (uint32_t i = 0; i < pages_to_map; i++) {
@@ -2637,6 +2647,22 @@ static uint64_t handle_sys_munmap(const syscall_args_t *args) {
   for (uint64_t off = 0; off < aligned_len; off += 4096) {
     paging_unmap_page(proc->pml4_phys, addr + off);
   }
+
+  // Find and release the SHM mapping
+  for (uint32_t i = 0; i < proc->shm_mapping_count; i++) {
+    if (proc->shm_mappings[i].addr == addr) {
+      if (proc->shm_mappings[i].seg) {
+        shm_unref((shm_segment_t *)proc->shm_mappings[i].seg);
+      }
+      // Remove from list by shifting remaining
+      for (uint32_t j = i; j < proc->shm_mapping_count - 1; j++) {
+        proc->shm_mappings[j] = proc->shm_mappings[j + 1];
+      }
+      proc->shm_mapping_count--;
+      break;
+    }
+  }
+
   return 0;
 }
 
@@ -2865,7 +2891,7 @@ uint64_t syscall_handler_c(registers_t *regs) {
   // Check for context-switching syscalls
   if (syscall_num == 0 || syscall_num == 60) { // EXIT
     int status = (int)regs->rdi;
-    return process_terminate_current_with_status((status & 0xff) << 8);
+    return process_terminate_current_with_status((status & 0xff) << 8, (uint64_t)regs);
   }
 
   if (syscall_num == 10) { // KILL
@@ -2877,7 +2903,7 @@ uint64_t syscall_handler_c(registers_t *regs) {
       return (uint64_t)regs;
     }
     if (target_pid == 0xFFFFFFFF || target_pid == current->pid) {
-      return process_terminate_current();
+      return process_terminate_current((uint64_t)regs);
     } else {
       process_t *target = process_get_by_pid(target_pid);
       if (target) {

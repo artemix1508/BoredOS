@@ -137,6 +137,14 @@ typedef struct process {
     void *sbrk_allocations[64];
     uint32_t sbrk_allocation_count;
 
+    // Tracking for shm mappings to allow full reclamation on exit.
+    struct {
+        uint64_t addr;
+        uint64_t length;
+        void *seg;
+    } shm_mappings[32];
+    uint32_t shm_mapping_count;
+
     poll_wtable_t poll_table;
 } __attribute__((aligned(16))) process_t;
 
@@ -163,8 +171,8 @@ uint32_t   process_get_current_pid(void);
 void process_set_current_for_cpu(uint32_t cpu_id, process_t* p);
 process_t* process_get_current_for_cpu(uint32_t cpu_id);
 uint64_t process_schedule(uint64_t current_rsp);
-uint64_t process_terminate_current(void);
-uint64_t process_terminate_current_with_status(int status);
+uint64_t process_terminate_current(uint64_t current_rsp);
+uint64_t process_terminate_current_with_status(int status, uint64_t current_rsp);
 // Records an allocated ELF segment pointer so it can be freed when the process exits.
 void process_add_elf_segment(struct process *proc, void *ptr);
 

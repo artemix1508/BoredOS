@@ -71,7 +71,6 @@ typedef enum {
     SYSTEM_CMD_RTC_GET = 11,
     SYSTEM_CMD_REBOOT = 12,
     SYSTEM_CMD_SHUTDOWN = 13,
-    SYSTEM_CMD_BEEP = 14,
     SYSTEM_CMD_GET_MEM_INFO = 15,
     SYSTEM_CMD_GET_TICKS = 16,
     SYSTEM_CMD_PCI_LIST = 17,
@@ -117,6 +116,7 @@ typedef enum {
     SYSTEM_CMD_FORK = 80,
     SYSTEM_CMD_PTY_CREATE = 82,
     SYSTEM_CMD_PTY_DESTROY = 83
+    ,SYSTEM_CMD_GET_PID = 84
 } system_cmd_t;
 
 void syscall_init(void);

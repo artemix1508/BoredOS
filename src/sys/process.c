@@ -14,7 +14,9 @@
 #include "smp.h"
 #include "lapic.h"
 #include "unix_socket.h"
+#include "shm.h"
 #include "../core/kutils.h"
+#include "../arch/fpu.h"
 
 #define MSR_FS_BASE 0xC0000100
 
@@ -80,6 +82,12 @@ static void process_release_slot(process_t *p) {
     for (int i = 0; i < 16; i++) p->mmap_allocations[i] = NULL;
     p->sbrk_allocation_count = 0;
     for (int i = 0; i < 64; i++) p->sbrk_allocations[i] = NULL;
+    p->shm_mapping_count = 0;
+    for (int i = 0; i < 32; i++) {
+        p->shm_mappings[i].addr = 0;
+        p->shm_mappings[i].length = 0;
+        p->shm_mappings[i].seg = NULL;
+    }
     process_init_signal_state(p);
 }
 
@@ -216,7 +224,7 @@ void process_init(void) {
     memset(kernel_proc->cwd, 0, 1024);
     kernel_proc->cwd[0] = '/';
     memset(&kernel_proc->poll_table, 0, sizeof(kernel_proc->poll_table));
-    current_process[0] = kernel_proc;
+    process_set_current_for_cpu(0, kernel_proc);
 }
 
 process_t* process_create(void (*entry_point)(void), bool is_user) {
@@ -299,10 +307,10 @@ process_t* process_create(void (*entry_point)(void), bool is_user) {
         for (int i = 0; i < 15; i++) *(--stack_ptr) = 0;
         
         // Push 512 bytes for SSE/FPU state (fxsave_region)
-        // Zero it out for safety
         stack_ptr = (uint64_t*)((uint64_t)stack_ptr - 512);
-        for (int i = 0; i < 512/8; i++) stack_ptr[i] = 0;
-        
+        asm volatile("fninit");
+        asm volatile("fxsave %0" : "=m"(*(uint8_t *)stack_ptr));
+
         new_proc->kernel_stack = (uint64_t)kernel_stack + 32768;
         new_proc->rsp = (uint64_t)stack_ptr;
     } else {
@@ -322,16 +330,14 @@ process_t* process_create(void (*entry_point)(void), bool is_user) {
         
         // Push 512 bytes for SSE/FPU state (fxsave_region)
         stack_ptr = (uint64_t*)((uint64_t)stack_ptr - 512);
-        // Zero it out for safety
-        for (int i = 0; i < 512/8; i++) stack_ptr[i] = 0;
+        asm volatile("fninit");
+        asm volatile("fxsave %0" : "=m"(*(uint8_t *)stack_ptr));
 
         new_proc->kernel_stack = (uint64_t)kernel_stack + 32768;
         new_proc->rsp = (uint64_t)stack_ptr;
         kfree(user_stack); // Unused for kernel threads
     }
 
-    // Initialize FPU state for new process
-    asm volatile("fninit");
     new_proc->fpu_initialized = true;
     
     new_proc->cpu_affinity = 0; // Non-ELF processes stay on BSP
@@ -387,7 +393,7 @@ process_t* process_create_elf(const char* filepath, const char* args_str, bool t
 
     process_t *parent = process_get_current();
     if (parent) {
-        for (int i = 0; i < MAX_PROCESS_FDS; i++) {
+        for (int i = 0; i < 3; i++) {
             if (parent->fds[i]) {
                 if (parent->fd_kind[i] == PROC_FD_KIND_FILE) {
                     process_fd_file_ref_t *ref = (process_fd_file_ref_t *)parent->fds[i];
@@ -457,6 +463,12 @@ process_t* process_create_elf(const char* filepath, const char* args_str, bool t
     new_proc->mmap_current = 0x50000000;
     new_proc->mmap_allocation_count = 0;
     for (int i = 0; i < 16; i++) new_proc->mmap_allocations[i] = NULL;
+    new_proc->shm_mapping_count = 0;
+    for (int i = 0; i < 32; i++) {
+        new_proc->shm_mappings[i].addr = 0;
+        new_proc->shm_mappings[i].length = 0;
+        new_proc->shm_mappings[i].seg = NULL;
+    }
     new_proc->is_terminal_proc = terminal_proc;
     new_proc->tty_id = tty_id;
     new_proc->kill_pending = false;
@@ -671,7 +683,7 @@ process_t* process_create_elf(const char* filepath, const char* args_str, bool t
         target_head->next = new_proc;
     } else {
         new_proc->next = new_proc;
-        current_process[target_cpu] = new_proc;
+        process_set_current_for_cpu(target_cpu, new_proc);
     }
     spinlock_release_irqrestore(&runqueue_lock, rflags);
     
@@ -696,11 +708,21 @@ process_t* process_get_current_for_cpu(uint32_t cpu_id) {
 void process_set_current_for_cpu(uint32_t cpu_id, process_t* p) {
     if (cpu_id >= MAX_CPUS_SCHED) return;
     current_process[cpu_id] = p;
+    
+    if (cpu_id == smp_this_cpu_id()) {
+        asm volatile("movq %0, %%gs:%c1" : : "r"(p), "i"(offsetof(cpu_state_t, current_process)));
+    } else {
+        cpu_state_t *cpu_state = smp_get_cpu(cpu_id);
+        if (cpu_state) {
+            cpu_state->current_process = p;
+        }
+    }
 }
 
 process_t* process_get_current(void) {
-    uint32_t cpu = smp_this_cpu_id();
-    return current_process[cpu];
+    process_t *p;
+    asm volatile("movq %%gs:%c1, %0" : "=r"(p) : "i"(offsetof(cpu_state_t, current_process)));
+    return p;
 }
 
 uint32_t process_get_current_pid(void) {
@@ -772,7 +794,7 @@ uint64_t process_schedule(uint64_t current_rsp) {
                 }
             }
 
-            current_process[my_cpu] = next_proc;
+            process_set_current_for_cpu(my_cpu, next_proc);
 
             cur->exited = true;
             cur->cpu_affinity = 0xFFFFFFFF;
@@ -809,6 +831,9 @@ uint64_t process_schedule(uint64_t current_rsp) {
                 paging_destroy_user_pml4_phys(cleanup_pml4, cleanup_free_mapped);
             }
 
+            if (next_rsp != current_rsp) {
+                fpu_switch(current_rsp, next_rsp);
+            }
             return next_rsp;
         }
     }
@@ -857,7 +882,7 @@ uint64_t process_schedule(uint64_t current_rsp) {
         }
     }
     
-    current_process[my_cpu] = next_proc;
+    process_set_current_for_cpu(my_cpu, next_proc);
     
     if (current_process[my_cpu]->is_user && current_process[my_cpu]->kernel_stack) {
         tss_set_stack_cpu(my_cpu, current_process[my_cpu]->kernel_stack);
@@ -881,6 +906,9 @@ uint64_t process_schedule(uint64_t current_rsp) {
         paging_destroy_user_pml4_phys(cleanup_pml4, cleanup_free_mapped);
     }
 
+    if (next_rsp != current_rsp) {
+        fpu_switch(current_rsp, next_rsp);
+    }
     return next_rsp;
 }
 
@@ -921,6 +949,15 @@ static void process_cleanup_inner(process_t *proc) {
         }
     }
     proc->mmap_allocation_count = 0;
+
+    // Cleanup SHM mappings
+    for (uint32_t i = 0; i < proc->shm_mapping_count; i++) {
+        if (proc->shm_mappings[i].seg) {
+            shm_unref((shm_segment_t *)proc->shm_mappings[i].seg);
+            proc->shm_mappings[i].seg = NULL;
+        }
+    }
+    proc->shm_mapping_count = 0;
 
     if (proc->is_terminal_proc && proc->tty_id >= 0) {
         extern void tty_set_blit_enabled_for_id(int id, bool enabled);
@@ -999,7 +1036,7 @@ void process_terminate_with_status(process_t *to_delete, int status) {
                     }
                 }
             }
-            current_process[c] = np;
+            process_set_current_for_cpu(c, np);
         }
     }
 
@@ -1040,7 +1077,7 @@ void process_terminate_with_status(process_t *to_delete, int status) {
     spinlock_release_irqrestore(&runqueue_lock, rflags);
 }
 
-uint64_t process_terminate_current_with_status(int status) {
+uint64_t process_terminate_current_with_status(int status, uint64_t current_rsp) {
     uint64_t rflags = spinlock_acquire_irqsave(&runqueue_lock);
 
     uint32_t my_cpu = smp_this_cpu_id();
@@ -1086,7 +1123,7 @@ uint64_t process_terminate_current_with_status(int status) {
         }
     }
     
-    current_process[my_cpu] = next_proc;
+    process_set_current_for_cpu(my_cpu, next_proc);
     
     // Mark slot as free
     to_delete->cpu_affinity = 0xFFFFFFFF;
@@ -1115,11 +1152,15 @@ uint64_t process_terminate_current_with_status(int status) {
     
     uint64_t next_rsp = current_process[my_cpu]->rsp;
     spinlock_release_irqrestore(&runqueue_lock, rflags);
+
+    if (next_rsp != current_rsp) {
+        fpu_switch(current_rsp, next_rsp);
+    }
     return next_rsp;
 }
 
-uint64_t process_terminate_current(void) {
-    return process_terminate_current_with_status(0);
+uint64_t process_terminate_current(uint64_t current_rsp) {
+    return process_terminate_current_with_status(0, current_rsp);
 }
 
 int process_reap(uint32_t caller_pid, uint32_t pid, int *status_out) {
@@ -1347,6 +1388,18 @@ int process_exec_replace_current(registers_t *regs, const char* filepath, const 
     proc->mmap_current = 0x50000000;
     proc->mmap_allocation_count = 0;
     for (int i = 0; i < 16; i++) proc->mmap_allocations[i] = NULL;
+    for (uint32_t i = 0; i < proc->shm_mapping_count; i++) {
+        if (proc->shm_mappings[i].seg) {
+            shm_unref((shm_segment_t *)proc->shm_mappings[i].seg);
+            proc->shm_mappings[i].seg = NULL;
+        }
+    }
+    proc->shm_mapping_count = 0;
+    for (int i = 0; i < 32; i++) {
+        proc->shm_mappings[i].addr = 0;
+        proc->shm_mappings[i].length = 0;
+        proc->shm_mappings[i].seg = NULL;
+    }
     proc->sleep_until = 0;
     process_init_signal_state(proc);
 
@@ -1471,6 +1524,8 @@ process_t* process_duplicate(registers_t *parent_regs) {
     child->kernel_stack = (uint64_t)child->kernel_stack_alloc + stack_size;
     child->user_stack_alloc = NULL;
 
+    fpu_save_to(parent_regs->fxsave_region);
+
     // Copy kernel stack content
     memcpy(child->kernel_stack_alloc, parent->kernel_stack_alloc, stack_size);
 
@@ -1512,6 +1567,18 @@ process_t* process_duplicate(registers_t *parent_regs) {
     for (int i = 0; i < 16; i++) child->mmap_allocations[i] = NULL;
     child->sbrk_allocation_count = 0;
     for (int i = 0; i < 64; i++) child->sbrk_allocations[i] = NULL;
+    child->shm_mapping_count = parent->shm_mapping_count;
+    for (uint32_t i = 0; i < parent->shm_mapping_count; i++) {
+        child->shm_mappings[i] = parent->shm_mappings[i];
+        if (child->shm_mappings[i].seg) {
+            shm_ref((shm_segment_t *)child->shm_mappings[i].seg);
+        }
+    }
+    for (uint32_t i = parent->shm_mapping_count; i < 32; i++) {
+        child->shm_mappings[i].addr = 0;
+        child->shm_mappings[i].length = 0;
+        child->shm_mappings[i].seg = NULL;
+    }
     child->mmap_current = parent->mmap_current;
 
     // Link the child process to the scheduling queue
